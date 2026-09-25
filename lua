@@ -749,22 +749,34 @@ local AutoSkipToggle = Tabs.Main:AddToggle("AutoSkip", {
 })
 
 ---------------------------------------------------------
--- 2. Combat Tab (Instant Kill & Setup)
+-- 2. Combat Tab (Instant Kill Logic)
 ---------------------------------------------------------
 local isInstantKill = false
 local instantKillHPThreshold = 100
+
+-- ฟังก์ชันดึงชื่ออาวุธที่กำลังถืออยู่จริง (ไม่จำกัดชนิดอาวุธ)
+local function GetEquippedWeaponName()
+    local player = game.Players.LocalPlayer
+    if player and player.Character then
+        local tool = player.Character:FindFirstChildOfClass("Tool")
+        if tool then
+            return tool.Name
+        end
+    end
+    return nil
+end
 
 Tabs.Combat:AddSection("Setup")
 
 local InstantKillToggle = Tabs.Combat:AddToggle("InstantKillToggle", {
     Title = "Instant Kill",
-    Description = "Sends high damage event to target when HP % is below threshold",
+    Description = "Spams damage remotes when Target HP % is below threshold",
     Default = false
 })
 
 local InstantKillSlider = Tabs.Combat:AddSlider("InstantKillHPThreshold", {
     Title = "HP Threshold (%)",
-    Description = "Target HP % threshold to activate Instant Kill (1-100%)",
+    Description = "Activate Instant Kill when target HP % drops below this value",
     Default = 100,
     Min = 1,
     Max = 100,
@@ -780,6 +792,7 @@ InstantKillToggle:OnChanged(function(Value)
     isInstantKill = Value
 end)
 
+-- Loop การทำงานของ Instant Kill
 task.spawn(function()
     local ReplicatedStorage = game:GetService("ReplicatedStorage")
     local signalEvent = ReplicatedStorage:WaitForChild("Communication"):WaitForChild("ServerAndClient"):WaitForChild("Signals"):WaitForChild("SignalEvent")
@@ -789,16 +802,33 @@ task.spawn(function()
         if isInstantKill then
             pcall(function()
                 local player = game.Players.LocalPlayer
-                if player and player.Character then
+                local equippedWeapon = GetEquippedWeaponName()
+
+                -- เช็กว่าได้ถืออาวุธอยู่หรือไม่
+                if player and player.Character and equippedWeapon then
                     for _, obj in pairs(workspace:GetDescendants()) do
                         if obj:IsA("Humanoid") and obj.Parent and obj.Parent ~= player.Character then
                             local targetChar = obj.Parent
                             local isPlayer = game.Players:GetPlayerFromCharacter(targetChar)
                             
+                            -- เช็กว่าเป็นมอนสเตอร์และยังมีชีวิตอยู่
                             if not isPlayer and obj.Health > 0 and obj.MaxHealth > 0 then
                                 local hpPercent = (obj.Health / obj.MaxHealth) * 100
+                                
+                                -- ทำงานเมื่อ HP% ของเป้าหมายต่ำกว่าหรือเท่ากับ Threshold ที่ตั้งไว้
                                 if hpPercent <= instantKillHPThreshold then
-                                    signalRemote:FireServer("Combat_Service", "Combat", 1, false, 99999999, false, targetChar)
+                                    -- รัว RemoteEvent ด้วยโครงสร้าง Remote Spy
+                                    for combo = 1, 10 do
+                                        local args = {
+                                            "Combat_Service",
+                                            equippedWeapon, -- ใส่ชื่ออาวุธที่ถืออยู่อัตโนมัติ
+                                            combo,
+                                            false,
+                                            0.06310679611650488,
+                                            true
+                                        }
+                                        signalRemote:FireServer(unpack(args))
+                                    end
                                 end
                             end
                         end
@@ -806,7 +836,7 @@ task.spawn(function()
                 end
             end)
         end
-        task.wait(0.2)
+        task.wait(0.05)
     end
 end)
 
