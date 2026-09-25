@@ -19,7 +19,7 @@ local WatermarkGui = nil
 -- Intro Loading Screen (รูปเดิม + โทนชมพูพาสเทลอ่อน)
 ---------------------------------------------------------
 local INTRO_IMAGE = "rbxassetid://92577004509867"
-local INTRO_TITLE = "ลาบนิวกับโช"
+local INTRO_TITLE = "Ellysocute"
 local INTRO_TIME  = 4.5 
 
 local function ResolveIntroImage(src)
