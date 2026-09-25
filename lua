@@ -501,59 +501,87 @@ do
     end)
 
     ---------------------------------------------------------
-    -- Auto Dungeon + วงแหวนขอบสีแดงเข้ม 3 ระดับ (ทะลุกำแพง + ไม่มีเนื้อข้างใน)
+    -- Auto Dungeon: TP บนหัว + หมุน 180° + ยิง Remote M1 โจมตี
     ---------------------------------------------------------
-    local circleContainer = {}
+    local isAutoDungeon = false
     local dungeonConnection = nil
+    local attackThread = nil
 
-    local function CreateRing(radiusSize)
-        local part = Instance.new("Part")
-        part.Name = "AutoDungeonCircle_" .. tostring(radiusSize)
-        part.Shape = Enum.PartType.Cylinder
-        part.Size = Vector3.new(0.01, radiusSize, radiusSize)
-        part.Transparency = 1
-        part.Anchored = true
-        part.CanCollide = false
-        part.CastShadow = false
-        part.Parent = workspace
+    -- ฟังก์ชันค้นหา Mob ที่ใกล้ที่สุดในระยะ 1250 Studs
+    local function GetClosestMob(maxDistance)
+        local player = game.Players.LocalPlayer
+        if not (player.Character and player.Character:FindFirstChild("HumanoidRootPart")) then return nil end
 
-        local box = Instance.new("SelectionBox")
-        box.Name = "RedOutline"
-        box.Adornee = part
-        box.Color3 = Color3.fromRGB(139, 0, 0) -- สีแดงเข้ม
-        box.LineThickness = 0.05
-        box.SurfaceTransparency = 1
-        box.Parent = part
+        local myPos = player.Character.HumanoidRootPart.Position
+        local closestMob = nil
+        local shortestDist = maxDistance
 
-        return part
+        for _, obj in pairs(workspace:GetDescendants()) do
+            if obj:IsA("Humanoid") and obj.Parent and obj.Parent ~= player.Character then
+                local mobChar = obj.Parent
+                local mobHrp = mobChar:FindFirstChild("HumanoidRootPart") or mobChar:FindFirstChild("Head") or mobChar.PrimaryPart
+
+                if mobHrp and obj.Health > 0 then
+                    if not game.Players:GetPlayerFromCharacter(mobChar) then
+                        local dist = (mobHrp.Position - myPos).Magnitude
+                        if dist <= shortestDist then
+                            shortestDist = dist
+                            closestMob = mobChar
+                        end
+                    end
+                end
+            end
+        end
+
+        return closestMob
     end
 
     local AutoDungeonToggle = Tabs.Main:AddToggle("AutoDungeon", {
-        Title = "Auto Dungeon",
+        Title = "Auto Dungeon (TP + Attack)",
+        Description = "วาร์ปไปบนหัว Mob, หมุนตัวลง 180° และกดโจมตีอัตโนมัติ",
         Default = false
     })
 
     AutoDungeonToggle:OnChanged(function(Value)
+        isAutoDungeon = Value
         print("Auto Dungeon Status:", Value)
-        
-        if Value then
-            if #circleContainer == 0 then
-                table.insert(circleContainer, CreateRing(750))
-                table.insert(circleContainer, CreateRing(500))
-                table.insert(circleContainer, CreateRing(250))
-            end
 
-            dungeonConnection = game:GetService("RunService").RenderStepped:Connect(function()
+        if isAutoDungeon then
+            -- ลูปติดตามและปรับตำแหน่งตัวละคร CFrame
+            dungeonConnection = game:GetService("RunService").Heartbeat:Connect(function()
                 local player = game.Players.LocalPlayer
-                if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-                    local hrp = player.Character.HumanoidRootPart
-                    local targetCFrame = CFrame.new(hrp.Position) * CFrame.Angles(0, 0, math.rad(90))
-                    
-                    for _, circle in ipairs(circleContainer) do
-                        if circle and circle.Parent then
-                            circle.CFrame = targetCFrame
-                        end
+                if not (player.Character and player.Character:FindFirstChild("HumanoidRootPart")) then return end
+
+                local targetMob = GetClosestMob(1250)
+                if targetMob then
+                    local mobHead = targetMob:FindFirstChild("Head") or targetMob:FindFirstChild("HumanoidRootPart") or targetMob.PrimaryPart
+                    if mobHead then
+                        -- ตำแหน่งเหนือหัว Mob 5 Studs พร้อมหมุนตัวเอียงลง 180 องศา (math.rad(180))
+                        local topHeadCFrame = CFrame.new(mobHead.Position + Vector3.new(0, 5, 0)) * CFrame.Angles(math.rad(180), 0, 0)
+                        player.Character.HumanoidRootPart.CFrame = topHeadCFrame
                     end
+                end
+            end)
+
+            -- ลูปส่งสัญญาณ Remote M1 โจมตี
+            attackThread = task.spawn(function()
+                while isAutoDungeon do
+                    local targetMob = GetClosestMob(1250)
+                    if targetMob then
+                        local args = {
+                            [1] = "Combat_Service",
+                            [2] = "Combat",
+                            [3] = 1,
+                            [4] = false,
+                            [5] = 0.13,
+                            [6] = false
+                        }
+                        
+                        pcall(function()
+                            game:GetService("ReplicatedStorage").Communication.ServerAndClient.Signals.SignalEvent.Event:FireServer(unpack(args))
+                        end)
+                    end
+                    task.wait(0.13) -- ระยะเวลาคูลดาวน์การกด M1
                 end
             end)
         else
@@ -561,13 +589,10 @@ do
                 dungeonConnection:Disconnect()
                 dungeonConnection = nil
             end
-            
-            for _, circle in ipairs(circleContainer) do
-                if circle then
-                    circle:Destroy()
-                end
+            if attackThread then
+                task.cancel(attackThread)
+                attackThread = nil
             end
-            circleContainer = {}
         end
     end)
 
@@ -678,4 +703,4 @@ do
             end
         end
     end)
-end        
+end
