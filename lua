@@ -204,34 +204,6 @@ local Window = KornluvElly:CreateWindow({
 ---------------------------------------------------------
 -- Mobile UI Helpers
 ---------------------------------------------------------
-local UserInputService = game:GetService("UserInputService")
-
-local function AttachMobileDragFilter(scrollingFrame, itemButton, onClickCallback)
-    local startPos = Vector2.zero
-    local isMoved = false
-
-    itemButton.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            startPos = input.Position
-            isMoved = false
-        end
-    end)
-
-    itemButton.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-            if (input.Position - startPos).Magnitude > 10 then
-                isMoved = true
-            end
-        end
-    end)
-
-    itemButton.InputEnded:Connect(function(input)
-        if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) and not isMoved then
-            onClickCallback()
-        end
-    end)
-end
-
 local function MobileOptimizeSlider(sliderObject)
     task.spawn(function()
         task.wait(0.5)
@@ -340,7 +312,7 @@ StartDungeonToggle:OnChanged(function(Value)
 end)
 
 ---------------------------------------------------------
--- 2. Combat Tab (Instant Kill Fix)
+-- 2. Combat Tab (Instant Kill)
 ---------------------------------------------------------
 local isInstantKill = false
 local instantKillHPThreshold = 100
@@ -462,3 +434,28 @@ game:GetService("RunService").RenderStepped:Connect(function()
         end
     end
 end)
+
+---------------------------------------------------------
+-- 4. Settings Tab (SaveManager & InterfaceManager)
+---------------------------------------------------------
+SaveManager:SetLibrary(KornluvElly)
+InterfaceManager:SetLibrary(KornluvElly)
+
+SaveManager:IgnoreThemeSettings()
+SaveManager:SetIgnoreIndexes({})
+
+InterfaceManager:SetFolder("KornluvEllyScript")
+SaveManager:SetFolder("KornluvEllyScript/configs")
+
+InterfaceManager:BuildInterfaceSection(Tabs.Settings)
+SaveManager:BuildConfigSection(Tabs.Settings)
+
+Window:SelectTab(1)
+
+KornluvElly:Notify({
+    Title = "KornluvElly",
+    Content = "Script loaded successfully!",
+    Duration = 5
+})
+
+SaveManager:LoadAutoloadConfig()
