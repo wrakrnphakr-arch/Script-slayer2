@@ -497,29 +497,31 @@ do
     end)
 
     ---------------------------------------------------------
-    -- Auto Dungeon: ล็อคเป้าหมาย + วาร์ป Offset + หันลง 90° + โจมตีจนกว่าจะตาย
+    -- Auto Dungeon (ปรับปรุงใหม่: ยิงรัวความเร็วสูง + ไม่ติดบัค)
     ---------------------------------------------------------
     local isAutoDungeon = false
     local dungeonConnection = nil
     local attackThread = nil
-    local currentTargetMob = nil -- ตัวแปรเก็บ Mob ที่กำลังล็อคเป้า
+    local currentTargetMob = nil 
 
-    -- กำหนดระยะ Offset ตามที่คุณระบุ
     local DISTANCE = 6.5
     local OFFSET_X = 0
     local OFFSET_Y = -1
     local OFFSET_Z = 0
 
-    -- เช็คว่า Mob ยังมีชีวิตอยู่หรือไม่
+    -- เช็คสถานะ Mob แบบแม่นยำ
     local function IsMobAlive(mob)
-        if mob and mob.Parent then
+        if mob and mob.Parent and mob:IsDescendantOf(workspace) then
             local hum = mob:FindFirstChildOfClass("Humanoid")
-            return hum and hum.Health > 0
+            local hrp = mob:FindFirstChild("HumanoidRootPart") or mob:FindFirstChild("Head") or mob.PrimaryPart
+            if hum and hrp and hum.Health > 0 then
+                return true
+            end
         end
         return false
     end
 
-    -- ฟังก์ชันค้นหา Mob ตัวใหม่ที่ใกล้ที่สุดในระยะ 1250 Studs
+    -- ค้นหา Mob ที่ใกล้ที่สุดในระยะ 1250 Studs
     local function GetClosestMob(maxDistance)
         local player = game.Players.LocalPlayer
         if not (player.Character and player.Character:FindFirstChild("HumanoidRootPart")) then return nil end
@@ -531,14 +533,13 @@ do
         for _, obj in pairs(workspace:GetDescendants()) do
             if obj:IsA("Humanoid") and obj.Parent and obj.Parent ~= player.Character then
                 local mobChar = obj.Parent
-                local mobHrp = mobChar:FindFirstChild("HumanoidRootPart") or mobChar:FindFirstChild("Head") or mobChar.PrimaryPart
-
-                if mobHrp and obj.Health > 0 then
-                    if not game.Players:GetPlayerFromCharacter(mobChar) then
+                if IsMobAlive(mobChar) and not game.Players:GetPlayerFromCharacter(mobChar) then
+                    local mobHrp = mobChar:FindFirstChild("HumanoidRootPart") or mobChar:FindFirstChild("Head") or mobChar.PrimaryPart
+                    if mobHrp then
                         local dist = (mobHrp.Position - myPos).Magnitude
-                        if dist <= shortestDist then
+                      if dist <= shortestDist then
                             shortestDist = dist
-                 closestMob = mobChar
+                            closestMob = mobChar
                         end
                     end
                 end
@@ -549,42 +550,43 @@ do
     end
 
     local AutoDungeonToggle = Tabs.Main:AddToggle("AutoDungeon", {
-        Title = "Auto Dungeon (Lock Target + TP 90°)",
-        Description = "ล็อคเป้าหมายในระยะ 1250, วาร์ปตาม Offset, ก้มหน้า 90° และกด M1 จนกว่าจะตาย",
+        Title = "Auto Dungeon (Fast Attack)",
+        Description = "ล็อคเป้าหมายในระยะ 1250, TP Offset, ก้มหน้า 90° และโจมตีรัวๆ",
         Default = false
     })
 
     AutoDungeonToggle:OnChanged(function(Value)
         isAutoDungeon = Value
-        print("Auto Dungeon Status:", Value)
 
         if isAutoDungeon then
-            -- ลูปวาร์ปและหันหน้าลง 90 องศา
+            -- ลูปวาร์ปตามติดมอนสเตอร์
             dungeonConnection = game:GetService("RunService").Heartbeat:Connect(function()
                 local player = game.Players.LocalPlayer
                 if not (player.Character and player.Character:FindFirstChild("HumanoidRootPart")) then return end
 
-                -- ตรวจสอบว่าเป้าหมายเดิมยังอยู่ไหม ถ้าไม่มี/ตายแล้ว ค่อยหาใหม่
+                -- ถ้าเป้าหมายตายหรือไม่อยู่แล้ว ให้สแกนใหม่ทันที
                 if not IsMobAlive(currentTargetMob) then
                     currentTargetMob = GetClosestMob(1250)
                 end
 
-                if currentTargetMob then
+                if IsMobAlive(currentTargetMob) then
                     local mobPart = currentTargetMob:FindFirstChild("HumanoidRootPart") or currentTargetMob:FindFirstChild("Head") or currentTargetMob.PrimaryPart
                     if mobPart then
-                        -- คำนวณตำแหน่งจาก Distance + Offsets
                         local targetPos = mobPart.Position + Vector3.new(OFFSET_X, DISTANCE + OFFSET_Y, OFFSET_Z)
-                        
-                        -- CFrame: ย้ายตำแหน่ง + หันหน้าลง 90 องศา (-90 rad)
                         local targetCFrame = CFrame.new(targetPos) * CFrame.Angles(math.rad(-90), 0, 0)
                         
+                        -- ปรับ CFrame ตัวละคร + ปิดความเร็วแนวดิ่งเพื่อป้องกันการตกสั่น
                         player.Character.HumanoidRootPart.CFrame = targetCFrame
+                        player.Character.HumanoidRootPart.Velocity = Vector3.new(0, 0, 0)
                     end
                 end
             end)
 
-            -- ลูปส่งสัญญาณ Remote M1 โจมตี Mob ที่ล็อคเป้าอยู่
+            -- ลูปรัวการโจมตี (Fast Spam M1)
             attackThread = task.spawn(function()
+                local signalEvent = game:GetService("ReplicatedStorage"):WaitForChild("Communication"):WaitForChild("ServerAndClient"):WaitForChild("Signals"):WaitForChild("SignalEvent")
+                local signalRemote = signalEvent:FindFirstChild("Event") or signalEvent
+
                 while isAutoDungeon do
                     if IsMobAlive(currentTargetMob) then
                         local args = {
@@ -597,10 +599,10 @@ do
                         }
                         
                         pcall(function()
-                            game:GetService("ReplicatedStorage").Communication.ServerAndClient.Signals.SignalEvent.Event:FireServer(unpack(args))
+                            signalRemote:FireServer(unpack(args))
                         end)
                     end
-                    task.wait(0.13) -- คูลดาวน์การโจมตี
+                    task.wait(0.03) -- เร่งความเร็วการโจมตีแบบปลอดภัย ไม่หลุดสแกน
                 end
             end)
         else
