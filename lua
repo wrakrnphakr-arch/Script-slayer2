@@ -562,32 +562,10 @@ do
         Multi = true,
         Default = {}
     })
-
-    local BlacklistCardDropdown = Tabs.Main:AddDropdown("BlacklistCard", {
-        Title = "Blacklist Card",
-        Description = "Select cards to ignore",
-        Values = {"Card 1", "Card 2", "Card 3", "Card 4", "Card 5", "Card 6", "Card 7"},
-        Multi = true,
-        Default = {}
-    })
-
-    local HealCardSlider = Tabs.Main:AddSlider("HealCardBelowHP", {
-        Title = "Heal Card Below HP %",
-        Description = "Adjust HP threshold for Heal Card",
-        Default = 50,
-        Min = 1,
-        Max = 100,
-        Rounding = 0,
-        Callback = function(Value)
-            print("Heal Card HP %:", Value)
-        end
-    })
-
-    local AutoPickCardToggle = Tabs.Main:AddToggle("AutoPickCard", {
     ---------------------------------------------------------
     -- Auto Dungeon + วงแหวนขอบสีแดง 3 ระดับ (750, 500, 250 Studs)
     ---------------------------------------------------------
-local circleContainer = {}
+    local circleContainer = {}
     local dungeonConnection = nil
 
     -- ฟังก์ชันสำหรับสร้างวงแหวนขอบสีแดง
