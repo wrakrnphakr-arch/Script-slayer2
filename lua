@@ -478,7 +478,7 @@ do
                     end
                     
                     local playerGui = player:FindFirstChild("PlayerGui")
-                    if playerGui me then
+                    if playerGui then
                         for _, guiItem in pairs(playerGui:GetDescendants()) do
                             if (guiItem:IsA("TextButton") or guiItem:IsA("ImageButton")) and guiItem.Visible then
                                 if guiItem:IsA("TextButton") and string.find(string.lower(guiItem.Text), "ready") then
