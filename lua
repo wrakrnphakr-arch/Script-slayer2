@@ -1,4 +1,4 @@
-Local KornluvElly = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
+local KornluvElly = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/main.lua"))()
 local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
 local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
 
@@ -6,7 +6,7 @@ local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.
 -- Intro Loading Screen (รูปเดิม + โทนชมพูพาสเทลอ่อน)
 ---------------------------------------------------------
 local INTRO_IMAGE = "rbxassetid://92577004509867"
-local INTRO_TITLE = "ลาบนิวกับโช"
+local INTRO_TITLE = "อีนิวกับลาบโช"
 local INTRO_TIME  = 4.5 
 
 local function ResolveIntroImage(src)
