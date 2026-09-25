@@ -443,6 +443,7 @@ end)
 ---------------------------------------------------------
 local Tabs = {
     Main = Window:AddTab({ Title = "Main", Icon = "home" }),
+    Combat = Window:AddTab({ Title = "Combat", Icon = "swords" }),
     Player = Window:AddTab({ Title = "Player", Icon = "user" }),
     Settings = Window:AddTab({ Title = "Settings", Icon = "settings" })
 }
@@ -758,7 +759,91 @@ do
         Title = "Auto Skip",
         Default = false
     })
+---------------------------------------------------------
+-- Combat Tab Setup (วางไว้ก่อน Tab Player)
+---------------------------------------------------------
+Tabs.Combat = Window:AddTab({ Title = "Combat", Icon = "swords" })
 
+do
+    ---------------------------------------------------------
+    -- Setup Section
+    ---------------------------------------------------------
+    Tabs.Combat:AddSection("Setup")
+
+    local isInstantKill = false
+    local instantKillHPThreshold = 20
+
+    local InstantKillToggle = Tabs.Combat:AddToggle("InstantKillToggle", {
+        Title = "Instant Kill",
+        Description = "Sends lethal damage direct to mob below HP threshold",
+        Default = false
+    })
+
+    local InstantKillSlider = Tabs.Combat:AddSlider("InstantKillSlider", {
+        Title = "HP Threshold (%)",
+        Description = "Triggers Instant Kill when Mob HP is below this %",
+        Default = 20,
+        Min = 1,
+        Max = 100,
+        Rounding = 0,
+        Callback = function(Value)
+            instantKillHPThreshold = Value
+        end
+    })
+
+    -- Add mobile + / - buttons to slider
+    MobileOptimizeSlider(InstantKillSlider)
+
+    InstantKillToggle:OnChanged(function(Value)
+        isInstantKill = Value
+    end)
+
+    ---------------------------------------------------------
+    -- Instant Kill Logic Loop
+    ---------------------------------------------------------
+    task.spawn(function()
+        local signalEvent = game:GetService("ReplicatedStorage")
+            :WaitForChild("Communication")
+            :WaitForChild("ServerAndClient")
+            :WaitForChild("Signals")
+            :WaitForChild("SignalEvent")
+        local signalRemote = signalEvent:FindFirstChild("Event") or signalEvent
+
+        while true do
+            if isInstantKill then
+                pcall(function()
+                    local player = game.Players.LocalPlayer
+                    if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                        local myPos = player.Character.HumanoidRootPart.Position
+
+                        for _, obj in pairs(workspace:GetDescendants()) do
+                            if obj:IsA("Humanoid") and obj.Parent and obj.Parent ~= player.Character then
+                                local mobChar = obj.Parent
+                                local mobHrp = mobChar:FindFirstChild("HumanoidRootPart") or mobChar:FindFirstChild("Head") or mobChar.PrimaryPart
+                                
+                                if mobHrp and obj.Health > 0 and not game.Players:GetPlayerFromCharacter(mobChar) then
+                                    local dist = (mobHrp.Position - myPos).Magnitude
+                                    
+                                    -- Check if within range (100 studs)
+                                    if dist <= 100 then
+                                        local hpPercent = (obj.Health / obj.MaxHealth) * 100
+                                        
+                                        -- Trigger Instant Kill direct signal payload if HP % is below threshold
+                                        if hpPercent <= instantKillHPThreshold then
+                                            signalRemote:FireServer("Combat_Service", "Combat", 1, false, 999999999, true)
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end)
+            end
+            task.wait(0.1)
+        end
+    end)
+    end
+    
     ---------------------------------------------------------
     -- Player Section (Player Tab)
     ---------------------------------------------------------
