@@ -497,11 +497,11 @@ do
     end)
 
     ---------------------------------------------------------
-    -- Auto Dungeon (Continuous Fast Attack & Lock System)
+    -- Auto Dungeon (Max Speed Instant Hit Engine)
     ---------------------------------------------------------
     local isAutoDungeon = false
     local dungeonConnection = nil
-    local attackConnection = nil
+    local attackThreads = {}
     local currentTargetMob = nil 
 
     local DISTANCE = 6.5
@@ -548,8 +548,8 @@ do
     end
 
     local AutoDungeonToggle = Tabs.Main:AddToggle("AutoDungeon", {
-        Title = "Auto Dungeon (Infinite Fast Hit)",
-        Description = "Locks target within 1250 studs, continuous high-speed attack",
+        Title = "Auto Dungeon (Max Speed Hit)",
+        Description = "Locks target within 1250 studs, maximum speed instant attack",
         Default = false
     })
 
@@ -557,7 +557,7 @@ do
         isAutoDungeon = Value
 
         if isAutoDungeon then
-            -- Position & CFrame Follow Loop
+            -- Position & CFrame Target Lock
             dungeonConnection = game:GetService("RunService").Heartbeat:Connect(function()
                 local player = game.Players.LocalPlayer
                 if not (player.Character and player.Character:FindFirstChild("HumanoidRootPart")) then return end
@@ -578,36 +578,36 @@ do
                 end
             end)
 
-            -- Continuous RenderStepped Fast Attack Loop
+            -- Parallel Multi-Threaded Remote Spamming (Zero Delay)
             local signalEvent = game:GetService("ReplicatedStorage"):WaitForChild("Communication"):WaitForChild("ServerAndClient"):WaitForChild("Signals"):WaitForChild("SignalEvent")
             local signalRemote = signalEvent:FindFirstChild("Event") or signalEvent
 
-            local args = {
-                [1] = "Combat_Service",
-                [2] = "Combat",
-                [3] = 1,
-                [4] = false,
-                [5] = 0.13,
-                [6] = false
-            }
-
-            attackConnection = game:GetService("RunService").RenderStepped:Connect(function()
-                if isAutoDungeon then
-                    pcall(function()
-                        signalRemote:FireServer(unpack(args))
-                    end)
-                end
-            end)
+            attackThreads = {}
+            for i = 1, 3 do
+                local t = task.spawn(function()
+                    while isAutoDungeon do
+                        if IsMobAlive(currentTargetMob) then
+                            for combo = 1, 4 do
+                                pcall(function()
+                                    signalRemote:FireServer("Combat_Service", "Combat", combo, false, 0, false)
+                                end)
+                            end
+                        end
+                        task.wait()
+                    end
+                end)
+                table.insert(attackThreads, t)
+            end
         else
             currentTargetMob = nil
             if dungeonConnection then
                 dungeonConnection:Disconnect()
                 dungeonConnection = nil
             end
-            if attackConnection then
-                attackConnection:Disconnect()
-                attackConnection = nil
+            for _, t in ipairs(attackThreads) do
+                task.cancel(t)
             end
+            attackThreads = {}
         end
     end)
 
