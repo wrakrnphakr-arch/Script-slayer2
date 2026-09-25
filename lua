@@ -592,12 +592,17 @@ do
                     Rotation = endRotation
                 })
 
+                                local fallTween = TweenService:Create(petal, TweenInfo.new(fallDuration, Enum.EasingStyle.Linear), {
+                    Position = UDim2.fromScale(endX, 1.1),
+                    Rotation = endRotation
+                })
+
                 fallTween:Play()
                 fallTween.Completed:Wait()
-            end
-        end)
-    end
-end
+            end -- ปิดลูป while
+        end) -- ปิด task.spawn(function() (ต้องมีวงเล็บปิดด้วย)
+    end -- ปิดลูป for
+end -- ปิดฟังก์ชัน StartSakuraEffect
 
 ---------------------------------------------------------
 -- ใส่รูปภาพพื้นหลัง + เรียกใช้ระบบซากุระ
