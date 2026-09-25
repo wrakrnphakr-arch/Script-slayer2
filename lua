@@ -202,7 +202,7 @@ local Window = KornluvElly:CreateWindow({
 })
 
 ---------------------------------------------------------
--- ระบบเอฟเฟกต์ซากุระร่วง (เปิดตอนโชว์ UI / หายตอนพับ UI)
+-- ระบบเอฟเฟกต์ซากุระร่วง
 ---------------------------------------------------------
 local TweenService = game:GetService("TweenService")
 local isSakuraActive = false
@@ -327,7 +327,7 @@ task.spawn(function()
 end)
 
 ---------------------------------------------------------
--- ปุ่ม Watermark โทนชมพูอ่อนผสมขาว
+-- ปุ่ม Watermark
 ---------------------------------------------------------
 local CoreGui = game:GetService("CoreGui")
 local UserInputService = game:GetService("UserInputService")
@@ -409,7 +409,7 @@ UserInputService.InputChanged:Connect(function(input)
 end)
 
 ---------------------------------------------------------
--- ส่วนของ Tabs และ Elements
+-- ส่วนของ Tabs
 ---------------------------------------------------------
 local Tabs = {
     Main = Window:AddTab({ Title = "Main", Icon = "home" }),
@@ -501,7 +501,7 @@ do
     end)
 
     ---------------------------------------------------------
-    -- Auto Dungeon + วงแหวนขอบสีแดง 3 ระดับ (750, 500, 250 Studs)
+    -- Auto Dungeon + วงแหวนขอบสีแดง 3 ระดับ (750, 500, 250)
     ---------------------------------------------------------
     local circleContainer = {}
     local dungeonConnection = nil
@@ -510,8 +510,10 @@ do
         local part = Instance.new("Part")
         part.Name = "AutoDungeonCircle_" .. tostring(radiusSize)
         part.Shape = Enum.PartType.Cylinder
-        part.Size = Vector3.new(0.05, radiusSize, radiusSize)
-        part.Transparency = 1
+        part.Size = Vector3.new(0.2, radiusSize, radiusSize)
+        part.Transparency = 0.9 -- จางบางๆ เพื่อให้เอนจินวาดเส้น Highlight ครบวง
+        part.Color = Color3.fromRGB(255, 0, 0)
+        part.Material = Enum.Material.SmoothPlastic
         part.Anchored = true
         part.CanCollide = false
         part.CastShadow = false
@@ -520,9 +522,9 @@ do
         local highlight = Instance.new("Highlight")
         highlight.Name = "CircleOutline"
         highlight.Adornee = part
-        highlight.FillTransparency = 1
-        highlight.OutlineColor = Color3.fromRGB(255, 0, 0)
-        highlight.OutlineTransparency = 0
+        highlight.FillTransparency = 1 -- ไม่ลงสีทึบด้านใน
+        highlight.OutlineColor = Color3.fromRGB(255, 0, 0) -- ขอบสีแดง
+        highlight.OutlineTransparency = 0 -- ขอบชัดเจน 100%
         highlight.Parent = part
 
         return part
@@ -543,7 +545,7 @@ do
                 table.insert(circleContainer, CreateRing(250))
             end
 
-         dungeonConnection = game:GetService("RunService").RenderStepped:Connect(function()
+            dungeonConnection = game:GetService("RunService").RenderStepped:Connect(function()
                 local player = game.Players.LocalPlayer
                 if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
                     local hrp = player.Character.HumanoidRootPart
@@ -568,6 +570,114 @@ do
                 end
             end
             circleContainer = {}
+        end
+    end)
+
+    local SelectCardDropdown = Tabs.Main:AddDropdown("SelectCard", {
+        Title = "Select Card",
+        Description = "Select cards to auto pick",
+        Values = {"Card 1", "Card 2", "Card 3", "Card 4", "Card 5", "Card 6", "Card 7"},
+        Multi = true,
+        Default = {}
+    })
+
+    local BlacklistCardDropdown = Tabs.Main:AddDropdown("BlacklistCard", {
+        Title = "Blacklist Card",
+        Description = "Select cards to ignore",
+        Values = {"Card 1", "Card 2", "Card 3", "Card 4", "Card 5", "Card 6", "Card 7"},
+        Multi = true,
+        Default = {}
+    })
+
+    local HealCardSlider = Tabs.Main:AddSlider("HealCardBelowHP", {
+        Title = "Heal Card Below HP %",
+        Description = "Adjust HP threshold for Heal Card",
+        Default = 50,
+        Min = 1,
+        Max = 100,
+        Rounding = 0,
+        Callback = function(Value)
+            print("Heal Card HP %:", Value)
+        end
+    })
+
+    local AutoPickCardToggle = Tabs.Main:AddToggle("AutoPickCard", {
+        Title = "Auto Pick Card",
+        Description = "Picks from Select Card & Ignores Blacklist Card",
+        Default = false
+    })
+
+    local AutoSkipToggle = Tabs.Main:AddToggle("AutoSkip", {
+        Title = "Auto Skip",
+        Default = false
+    })
+
+    ---------------------------------------------------------
+    -- หมวดหมู่: Player (Player Tab)
+    ---------------------------------------------------------
+    Tabs.Player:AddSection("Player")
+
+    local noclipConnection
+    local isNoclip = false
+
+    local NoClipToggle = Tabs.Player:AddToggle("NoClipToggle", {
+        Title = "No Clip",
+        Description = "ทำให้ตัวละครเดินทะลุกำแพงและสิ่งกีดขวาง",
+        Default = false
+    })
+
+    NoClipToggle:OnChanged(function(Value)
+        isNoclip = Value
+        if isNoclip then
+            noclipConnection = game:GetService("RunService").Stepped:Connect(function()
+                local player = game.Players.LocalPlayer
+                if player.Character then
+                    for _, part in pairs(player.Character:GetDescendants()) do
+                        if part:IsA("BasePart") and part.CanCollide then
+                            part.CanCollide = false
+                        end
+                    end
+                end
+            end)
+        else
+            if noclipConnection then
+                noclipConnection:Disconnect()
+                noclipConnection = nil
+            end
+        end
+    end)
+
+    local isSpeedActive = false
+    local speedValue = 16
+
+    local SpeedToggle = Tabs.Player:AddToggle("SpeedToggle", {
+        Title = "Player Speed",
+        Description = "เปิด/ปิด การใช้งานความเร็วตัวละครแบบกำหนดเอง",
+        Default = false
+    })
+
+    local SpeedSlider = Tabs.Player:AddSlider("SpeedSlider", {
+        Title = "Speed Value",
+        Description = "ปรับระดับความเร็ว (1 - 200)",
+        Default = 16,
+        Min = 1,
+        Max = 200,
+        Rounding = 0,
+        Callback = function(Value)
+            speedValue = Value
+        end
+    })
+
+    SpeedToggle:OnChanged(function(Value)
+        isSpeedActive = Value
+    end)
+
+    game:GetService("RunService").RenderStepped:Connect(function()
+        if isSpeedActive then
+            local player = game.Players.LocalPlayer
+            if player.Character and player.Character:FindFirstChild("Humanoid") then
+                player.Character.Humanoid.WalkSpeed = speedValue
+            end
         end
     end)
 end
