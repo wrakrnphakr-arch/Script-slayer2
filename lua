@@ -749,56 +749,56 @@ local AutoSkipToggle = Tabs.Main:AddToggle("AutoSkip", {
 })
 
 ---------------------------------------------------------
--- 2. Combat Tab (Instant Kill & Setup)
+-- Instant Kill Loop (Auto Detect Weapon & Fast Attack)
 ---------------------------------------------------------
-local isInstantKill = false
-local instantKillHPThreshold = 100
-
-Tabs.Combat:AddSection("Setup")
-
-local InstantKillToggle = Tabs.Combat:AddToggle("InstantKillToggle", {
-    Title = "Instant Kill",
-    Description = "Sends high damage event to target when HP % is below threshold",
-    Default = false
-})
-
-local InstantKillSlider = Tabs.Combat:AddSlider("InstantKillHPThreshold", {
-    Title = "HP Threshold (%)",
-    Description = "Target HP % threshold to activate Instant Kill (1-100%)",
-    Default = 100,
-    Min = 1,
-    Max = 100,
-    Rounding = 0,
-    Callback = function(Value)
-        instantKillHPThreshold = Value
-    end
-})
-
-MobileOptimizeSlider(InstantKillSlider)
-
-InstantKillToggle:OnChanged(function(Value)
-    isInstantKill = Value
-end)
-
 task.spawn(function()
     local ReplicatedStorage = game:GetService("ReplicatedStorage")
     local signalEvent = ReplicatedStorage:WaitForChild("Communication"):WaitForChild("ServerAndClient"):WaitForChild("Signals"):WaitForChild("SignalEvent")
     local signalRemote = signalEvent:FindFirstChild("Event") or signalEvent
 
+    -- ฟังก์ชั่นสำหรับค้นหาชื่ออาวุธที่ถืออยู่ในมือ
+    local function GetEquippedWeaponName(character)
+        if not character then return nil end
+        
+        -- ค้นหา Tool ที่อยู่ในตัวละคร (อาวุธที่ถืออยู่)
+        local tool = character:FindFirstChildOfClass("Tool")
+        if tool then
+            return tool.Name
+        end
+        return nil
+    end
+
     while true do
         if isInstantKill then
             pcall(function()
                 local player = game.Players.LocalPlayer
-                if player and player.Character then
+                local character = player and player.Character
+                
+                if character then
+                    -- ดึงชื่ออาวุธที่ถืออยู่ ถ้าไม่ได้ถือจะใช้ค่าเริ่มต้น
+                    local currentWeapon = GetEquippedWeaponName(character) or "Regular Katana"
+
                     for _, obj in pairs(workspace:GetDescendants()) do
-                        if obj:IsA("Humanoid") and obj.Parent and obj.Parent ~= player.Character then
+                        if obj:IsA("Humanoid") and obj.Parent and obj.Parent ~= character then
                             local targetChar = obj.Parent
                             local isPlayer = game.Players:GetPlayerFromCharacter(targetChar)
                             
+                            -- ทำงานกับมอนสเตอร์/บอส ที่ยังมีชีวิตอยู่
                             if not isPlayer and obj.Health > 0 and obj.MaxHealth > 0 then
                                 local hpPercent = (obj.Health / obj.MaxHealth) * 100
+                                
                                 if hpPercent <= instantKillHPThreshold then
-                                    signalRemote:FireServer("Combat_Service", "Combat", 1, false, 99999999, false, targetChar)
+                                    -- ยิง Remote รัวๆ 10-15 ครั้งในจังหวะเดียว เพื่อจำลองความเสียหายมหาศาล (Instant Kill)
+                                    for combo = 1, 4 do
+                                        signalRemote:FireServer(
+                                            "Combat_Service",
+                                            currentWeapon, -- ดึงชื่ออาวุธที่ถืออยู่ใส่ตรงนี้อัตโนมัติ
+                                            combo,
+                                            false,
+                                            0.06310679611650488,
+                                            true
+                                        )
+                                    end
                                 end
                             end
                         end
@@ -806,7 +806,7 @@ task.spawn(function()
                 end
             end)
         end
-        task.wait(0.2)
+        task.wait(0.05) -- ปรับความถี่ในการยิง Remote ให้เร็วขึ้น
     end
 end)
 
