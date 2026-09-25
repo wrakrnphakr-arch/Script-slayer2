@@ -3,6 +3,19 @@ local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/d
 local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
 
 ---------------------------------------------------------
+-- ตัวแปรควบคุมระบบทั้งหมด (สำหรับล้างการทำงาน)
+---------------------------------------------------------
+local isScriptRunning = true
+local isStartDungeonActive = false
+local isNoclip = false
+local noclipConnection = nil
+local isSpeedActive = false
+local speedConnection = nil
+local isSakuraActive = false
+local sakuraContainer = nil
+local WatermarkGui = nil
+
+---------------------------------------------------------
 -- Intro Loading Screen (รูปเดิม + โทนชมพูพาสเทลอ่อน)
 ---------------------------------------------------------
 local INTRO_IMAGE = "rbxassetid://92577004509867"
@@ -202,11 +215,52 @@ local Window = KornluvElly:CreateWindow({
 })
 
 ---------------------------------------------------------
--- ระบบเอฟเฟกต์ซากุระร่วง (เปิดตอนโชว์ UI / หายตอนพับ UI)
+-- ฟังก์ชันสำหรับลบและหยุดการทำงานทั้งหมด (Destroy Self)
+---------------------------------------------------------
+local function DestroyUI()
+    isScriptRunning = false
+    isStartDungeonActive = false
+    isNoclip = false
+    isSpeedActive = false
+
+    -- ยกเลิกการเชื่อมต่อ RunService
+    if noclipConnection then
+        noclipConnection:Disconnect()
+        noclipConnection = nil
+    end
+
+    if speedConnection then
+        speedConnection:Disconnect()
+        speedConnection = nil
+    end
+
+    -- หยุดเอฟเฟกต์ซากุระ
+    isSakuraActive = false
+    if sakuraContainer then
+        sakuraContainer:Destroy()
+        sakuraContainer = nil
+    end
+
+    -- ลบ Watermark
+    if WatermarkGui then
+        WatermarkGui:Destroy()
+        WatermarkGui = nil
+    end
+
+    local CoreGui = game:GetService("CoreGui")
+    local oldWatermark = CoreGui:FindFirstChild("KornluvEllyWatermark") or (gethui and gethui():FindFirstChild("KornluvEllyWatermark"))
+    if oldWatermark then
+        oldWatermark:Destroy()
+    end
+
+    -- ลบหน้าต่าง UI หลัก
+    KornluvElly:Destroy()
+end
+
+---------------------------------------------------------
+-- ระบบเอฟเฟกต์ซากุระร่วง
 ---------------------------------------------------------
 local TweenService = game:GetService("TweenService")
-local isSakuraActive = false
-local sakuraContainer = nil
 
 local function StopSakuraEffect()
     isSakuraActive = false
@@ -218,7 +272,7 @@ end
 
 local function StartSakuraEffect(targetParent)
     StopSakuraEffect()
-    if not targetParent then return end
+    if not targetParent or not isScriptRunning then return end
 
     isSakuraActive = true
     sakuraContainer = Instance.new("Frame")
@@ -229,13 +283,12 @@ local function StartSakuraEffect(targetParent)
     sakuraContainer.ZIndex = 1
     sakuraContainer.Parent = targetParent
 
-    -- สร้างกลีบดอกซากุระร่วง 25 กลีบ
     for i = 1, 25 do
         task.spawn(function()
             local petal = Instance.new("Frame")
             local size = math.random(6, 12)
             petal.Size = UDim2.fromOffset(size, math.floor(size * 1.5))
-            petal.BackgroundColor3 = Color3.fromRGB(255, 182, 193) -- ชมพูซากุระ
+            petal.BackgroundColor3 = Color3.fromRGB(255, 182, 193)
             petal.BackgroundTransparency = 0.15 + math.random() * 0.2
             petal.BorderSizePixel = 0
             petal.Rotation = math.random(0, 360)
@@ -247,7 +300,7 @@ local function StartSakuraEffect(targetParent)
 
             task.wait(math.random() * 3)
 
-            while isSakuraActive and petal and petal.Parent do
+            while isSakuraActive and isScriptRunning and petal and petal.Parent do
                 local startX = math.random()
                 petal.Position = UDim2.fromScale(startX, -0.1)
                 
@@ -269,6 +322,235 @@ end
 
 ---------------------------------------------------------
 -- ใส่รูปภาพพื้นหลัง + เรียกใช้ระบบซากุระ
+---------------------------------------------------------
+task.spawn(function()
+    local rootGui = Window.Root or (Window.UIElements and Window.UIElements.Main)
+    if not rootGui then
+        local CoreGui = game:GetService("CoreGui")
+        local targetName = "Fluent"
+        local found = (gethui and gethui():FindFirstChild(targetName)) or CoreGui:FindFirstChild(targetName)
+        if found then
+            rootGui = found:FindFirstChildWhichIsA("Frame", true)
+        end
+    end
+
+    if rootGui then
+        rootGui.BackgroundColor3 = Color3.fromRGB(255, 242, 246)
+
+        local uiBg = Instance.new("ImageLabel")
+        uiBg.Name = "WindowCustomBackground"
+        uiBg.Size = UDim2.fromScale(1, 1)
+        uiBg.Position = UDim2.fromScale(0, 0)
+        uiBg.BackgroundTransparency = 1
+        uiBg.Image = "rbxassetid://79436187892950"
+        uiBg.ScaleType = Enum.ScaleType.Crop
+        uiBg.ImageTransparency = 0.05
+        uiBg.ZIndex = -10
+        uiBg.Parent = rootGui
+        
+        local overlay = Instance.new("Frame")
+        overlay.Name = "PastelOverlay"
+        overlay.Size = UDim2.fromScale(1, 1)
+        overlay.BackgroundColor3 = Color3.fromRGB(255, 245, 248)
+        overlay.BackgroundTransparency = 0.85
+        overlay.BorderSizePixel = 0
+        overlay.ZIndex = -9
+        overlay.Parent = rootGui
+
+        local corner = rootGui:FindFirstChildWhichIsA("UICorner")
+        if corner then
+            local bgCorner = Instance.new("UICorner")
+            bgCorner.CornerRadius = corner.CornerRadius
+            bgCorner.Parent = uiBg
+
+            local overlayCorner = Instance.new("UICorner")
+            overlayCorner.CornerRadius = corner.CornerRadius
+            overlayCorner.Parent = overlay
+        end
+
+        StartSakuraEffect(rootGui)
+
+        rootGui:GetPropertyChangedSignal("Visible"):Connect(function()
+            if rootGui.Visible then
+                StartSakuraEffect(rootGui)
+            else
+                StopSakuraEffect()
+            end
+        end)
+
+        -- ลบระบบออกทันทีเมื่อตัว UI หลักถูก Destroy
+        rootGui.AncestryChanged:Connect(function(_, parent)
+            if not parent then
+                DestroyUI()
+            end
+        end)
+    end
+end)
+
+---------------------------------------------------------
+-- ปุ่ม Watermark โทนชมพูอ่อนผสมขาว
+---------------------------------------------------------
+local CoreGui = game:GetService("CoreGui")
+local UserInputService = game:GetService("UserInputService")
+
+if CoreGui:FindFirstChild("KornluvEllyWatermark") then
+    CoreGui:FindFirstChild("KornluvEllyWatermark"):Destroy()
+end
+
+WatermarkGui = Instance.new("ScreenGui")
+WatermarkGui.Name = "KornluvEllyWatermark"
+WatermarkGui.ResetOnSpawn = false
+
+if gethui then
+    WatermarkGui.Parent = gethui()
+else
+    WatermarkGui.Parent = CoreGui
+end
+
+local WatermarkButton = Instance.new("ImageButton")
+WatermarkButton.Name = "WatermarkIcon"
+WatermarkButton.Parent = WatermarkGui
+WatermarkButton.Size = UDim2.new(0, 60, 0, 60)
+WatermarkButton.Position = UDim2.new(1, -70, 0, 20)
+WatermarkButton.BackgroundTransparency = 1
+WatermarkButton.Image = "rbxassetid://119662096507158"
+
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(1, 0)
+UICorner.Parent = WatermarkButton
+
+local UIStroke = Instance.new("UIStroke")
+UIStroke.Color = Color3.fromRGB(255, 215, 225)
+UIStroke.Thickness = 2
+UIStroke.Parent = WatermarkButton
+
+local dragging = false
+local dragInput, dragStart, startPos
+local hasMoved = false
+
+local function update(input)
+    local delta = input.Position - dragStart
+    WatermarkButton.Position = UDim2.new(
+        startPos.X.Scale, startPos.X.Offset + delta.X,
+        startPos.Y.Scale, startPos.Y.Offset + delta.Y
+    )
+end
+
+WatermarkButton.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        hasMoved = false
+        dragStart = input.Position
+        startPos = WatermarkButton.Position
+
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+                if not hasMoved then
+                    Window:Minimize()
+                end
+            end
+        end)
+    end
+end)
+
+WatermarkButton.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        dragInput = input
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        if (input.Position - dragStart).Magnitude > 5 then
+            hasMoved = true
+        end
+        update(input)
+    end
+end)
+
+---------------------------------------------------------
+-- ส่วนของ Tabs และ Elements
+---------------------------------------------------------
+local Tabs = {
+    Main = Window:AddTab({ Title = "Main", Icon = "home" }),
+    Player = Window:AddTab({ Title = "Player", Icon = "user" }),
+    Settings = Window:AddTab({ Title = "Settings", Icon = "settings" })
+}
+
+local Options = KornluvElly.Options
+
+do
+    ---------------------------------------------------------
+    -- หมวดหมู่: Dungeon (Main Tab)
+    ---------------------------------------------------------
+    Tabs.Main:AddSection("Dungeon")
+
+    local JoinDungeonToggle = Tabs.Main:AddToggle("JoinDungeon", {
+        Title = "Join Dungeon",
+        Default = false
+    })
+    
+    JoinDungeonToggle:OnChanged(function(Value)
+        print("Join Dungeon Status:", Value)
+        if Value and isScriptRunning then
+            local player = game.Players.LocalPlayer
+            local character = player.Character or player.CharacterAdded:Wait()
+            local hrp = character:FindFirstChild("HumanoidRootPart")
+            local targetPosition = Vector3.new(-1600, 1010, 1143)
+            
+            if hrp then
+                hrp.CFrame = CFrame.new(targetPosition)
+            else
+                warn("ไม่พบตัวละครสำหรับการทำการวาร์ป!")
+            end
+        end
+    end)
+
+    local StartDungeonToggle = Tabs.Main:AddToggle("StartDungeon", {
+        Title = "Start Dungeon",
+        Default = false
+    })
+    
+    StartDungeonToggle:OnChanged(function(Value)
+        print("Start Dungeon Status:", Value)
+        isStartDungeonActive = Value
+        
+        if Value and isScriptRunning then
+            local player = game.Players.LocalPlayer
+            local character = player.Character or player.CharacterAdded:Wait()
+            local hrp = character:FindFirstChild("HumanoidRootPart")
+            
+            local targetPosition = Vector3.new(-2540, 1145, -5081)
+            if hrp then
+                hrp.CFrame = CFrame.new(targetPosition)
+            end
+            
+            task.spawn(function()
+                while isStartDungeonActive and isScriptRunning do
+                    for _, prompt in pairs(workspace:GetDescendants()) do
+                        if prompt:IsA("ProximityPrompt") and (string.find(string.lower(prompt.ObjectText), "ready") or string.find(string.lower(prompt.ActionText), "ready")) then
+                            fireproximityprompt(prompt)
+                        end
+                    end
+                    
+                    local playerGui = player:FindFirstChild("PlayerGui")
+                    if playerGui then
+                        for _, guiItem in pairs(playerGui:GetDescendants()) do
+                            if (guiItem:IsA("TextButton") or guiItem:IsA("ImageButton")) and guiItem.Visible then
+                                if guiItem:IsA("TextButton") and string.find(string.lower(guiItem.Text), "ready") then
+                                    for _, event in pairs({"MouseButton1Click", "MouseButton1Down", "Activated"}) do
+                                        for _, connection in pairs(getconnections(guiItem[event])) do
+                                            connection:Fire()
+                                        end
+                                    end
+                                elseif string.find(string.lower(guiItem.Name), "ready") then
+                                    for _, event in pairs({"MouseButton1Click", "MouseButton1Down", "Activated"}) do
+                                        for _, connection in pairs(getconnections(guiItem[event])) do
+                                            connection:Fire()
+                                        end
+                                    end
+    ยกใช้ระบบซากุระ
 ---------------------------------------------------------
 task.spawn(function()
     local rootGui = Window.Root or (Window.UIElements and Window.UIElements.Main)
