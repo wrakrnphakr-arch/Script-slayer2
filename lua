@@ -3,7 +3,7 @@ local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/d
 local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
 
 ---------------------------------------------------------
--- Intro Loading Screen (รูปเดิม + โทนชมพูพาสเทลอ่อน)
+-- Intro Loading Screen
 ---------------------------------------------------------
 local INTRO_IMAGE = "rbxassetid://92577004509867"
 local INTRO_TITLE = "ลาบนิวกับโช"
@@ -189,7 +189,7 @@ end
 PlayIntro()
 
 ---------------------------------------------------------
--- สร้างหน้าต่างหลัก (Window) - Theme Rose พาสเทล
+-- สร้างหน้าต่างหลัก (Window)
 ---------------------------------------------------------
 local Window = KornluvElly:CreateWindow({
     Title = "KornluvElly",
@@ -267,7 +267,7 @@ local function StartSakuraEffect(targetParent)
 end
 
 ---------------------------------------------------------
--- ใส่รูปภาพพื้นหลัง + เรียกใช้ระบบซากุระ
+-- ใส่รูปภาพพื้นหลัง
 ---------------------------------------------------------
 task.spawn(function()
     local rootGui = Window.Root or (Window.UIElements and Window.UIElements.Main)
@@ -431,7 +431,6 @@ do
     })
     
     JoinDungeonToggle:OnChanged(function(Value)
-        print("Join Dungeon Status:", Value)
         if Value then
             local player = game.Players.LocalPlayer
             local character = player.Character or player.CharacterAdded:Wait()
@@ -440,8 +439,6 @@ do
             
             if hrp then
                 hrp.CFrame = CFrame.new(targetPosition)
-            else
-                warn("ไม่พบตัวละครสำหรับการทำการวาร์ป!")
             end
         end
     end)
@@ -453,7 +450,6 @@ do
     })
     
     StartDungeonToggle:OnChanged(function(Value)
-        print("Start Dungeon Status:", Value)
         isStartDungeonActive = Value
         
         if Value then
@@ -501,13 +497,29 @@ do
     end)
 
     ---------------------------------------------------------
-    -- Auto Dungeon: TP บนหัว + หมุน 180° + ยิง Remote M1 โจมตี
+    -- Auto Dungeon: ล็อคเป้าหมาย + วาร์ป Offset + หันลง 90° + โจมตีจนกว่าจะตาย
     ---------------------------------------------------------
     local isAutoDungeon = false
     local dungeonConnection = nil
     local attackThread = nil
+    local currentTargetMob = nil -- ตัวแปรเก็บ Mob ที่กำลังล็อคเป้า
 
-    -- ฟังก์ชันค้นหา Mob ที่ใกล้ที่สุดในระยะ 1250 Studs
+    -- กำหนดระยะ Offset ตามที่คุณระบุ
+    local DISTANCE = 6.5
+    local OFFSET_X = 0
+    local OFFSET_Y = -1
+    local OFFSET_Z = 0
+
+    -- เช็คว่า Mob ยังมีชีวิตอยู่หรือไม่
+    local function IsMobAlive(mob)
+        if mob and mob.Parent then
+            local hum = mob:FindFirstChildOfClass("Humanoid")
+            return hum and hum.Health > 0
+        end
+        return false
+    end
+
+    -- ฟังก์ชันค้นหา Mob ตัวใหม่ที่ใกล้ที่สุดในระยะ 1250 Studs
     local function GetClosestMob(maxDistance)
         local player = game.Players.LocalPlayer
         if not (player.Character and player.Character:FindFirstChild("HumanoidRootPart")) then return nil end
@@ -526,7 +538,7 @@ do
                         local dist = (mobHrp.Position - myPos).Magnitude
                         if dist <= shortestDist then
                             shortestDist = dist
-                            closestMob = mobChar
+                 closestMob = mobChar
                         end
                     end
                 end
@@ -537,8 +549,8 @@ do
     end
 
     local AutoDungeonToggle = Tabs.Main:AddToggle("AutoDungeon", {
-        Title = "Auto Dungeon (TP + Attack)",
-        Description = "วาร์ปไปบนหัว Mob, หมุนตัวลง 180° และกดโจมตีอัตโนมัติ",
+        Title = "Auto Dungeon (Lock Target + TP 90°)",
+        Description = "ล็อคเป้าหมายในระยะ 1250, วาร์ปตาม Offset, ก้มหน้า 90° และกด M1 จนกว่าจะตาย",
         Default = false
     })
 
@@ -547,27 +559,34 @@ do
         print("Auto Dungeon Status:", Value)
 
         if isAutoDungeon then
-            -- ลูปติดตามและปรับตำแหน่งตัวละคร CFrame
+            -- ลูปวาร์ปและหันหน้าลง 90 องศา
             dungeonConnection = game:GetService("RunService").Heartbeat:Connect(function()
                 local player = game.Players.LocalPlayer
                 if not (player.Character and player.Character:FindFirstChild("HumanoidRootPart")) then return end
 
-                local targetMob = GetClosestMob(1250)
-                if targetMob then
-                    local mobHead = targetMob:FindFirstChild("Head") or targetMob:FindFirstChild("HumanoidRootPart") or targetMob.PrimaryPart
-                    if mobHead then
-                        -- ตำแหน่งเหนือหัว Mob 5 Studs พร้อมหมุนตัวเอียงลง 180 องศา (math.rad(180))
-                        local topHeadCFrame = CFrame.new(mobHead.Position + Vector3.new(0, 5, 0)) * CFrame.Angles(math.rad(180), 0, 0)
-                        player.Character.HumanoidRootPart.CFrame = topHeadCFrame
+                -- ตรวจสอบว่าเป้าหมายเดิมยังอยู่ไหม ถ้าไม่มี/ตายแล้ว ค่อยหาใหม่
+                if not IsMobAlive(currentTargetMob) then
+                    currentTargetMob = GetClosestMob(1250)
+                end
+
+                if currentTargetMob then
+                    local mobPart = currentTargetMob:FindFirstChild("HumanoidRootPart") or currentTargetMob:FindFirstChild("Head") or currentTargetMob.PrimaryPart
+                    if mobPart then
+                        -- คำนวณตำแหน่งจาก Distance + Offsets
+                        local targetPos = mobPart.Position + Vector3.new(OFFSET_X, DISTANCE + OFFSET_Y, OFFSET_Z)
+                        
+                        -- CFrame: ย้ายตำแหน่ง + หันหน้าลง 90 องศา (-90 rad)
+                        local targetCFrame = CFrame.new(targetPos) * CFrame.Angles(math.rad(-90), 0, 0)
+                        
+                        player.Character.HumanoidRootPart.CFrame = targetCFrame
                     end
                 end
             end)
 
-            -- ลูปส่งสัญญาณ Remote M1 โจมตี
+            -- ลูปส่งสัญญาณ Remote M1 โจมตี Mob ที่ล็อคเป้าอยู่
             attackThread = task.spawn(function()
                 while isAutoDungeon do
-                    local targetMob = GetClosestMob(1250)
-                    if targetMob then
+                    if IsMobAlive(currentTargetMob) then
                         local args = {
                             [1] = "Combat_Service",
                             [2] = "Combat",
@@ -581,10 +600,11 @@ do
                             game:GetService("ReplicatedStorage").Communication.ServerAndClient.Signals.SignalEvent.Event:FireServer(unpack(args))
                         end)
                     end
-                    task.wait(0.13) -- ระยะเวลาคูลดาวน์การกด M1
+                    task.wait(0.13) -- คูลดาวน์การโจมตี
                 end
             end)
         else
+            currentTargetMob = nil
             if dungeonConnection then
                 dungeonConnection:Disconnect()
                 dungeonConnection = nil
