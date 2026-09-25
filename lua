@@ -1,7 +1,6 @@
 local KornluvElly = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/main.lua"))()
 local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
 local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
-
 ---------------------------------------------------------
 -- Intro Loading Screen (รูปเดิม + โทนชมพูพาสเทลอ่อน)
 ---------------------------------------------------------
