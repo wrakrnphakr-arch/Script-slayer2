@@ -202,6 +202,37 @@ local Window = KornluvElly:CreateWindow({
 })
 
 ---------------------------------------------------------
+-- Mobile-Friendly UI Helper Functions
+---------------------------------------------------------
+local UserInputService = game:GetService("UserInputService")
+
+local function AttachMobileDragFilter(scrollingFrame, itemButton, onClickCallback)
+    local startPos = Vector2.zero
+    local isMoved = false
+
+    itemButton.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            startPos = input.Position
+            isMoved = false
+        end
+    end)
+
+    itemButton.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+            if (input.Position - startPos).Magnitude > 10 then
+                isMoved = true
+            end
+        end
+    end)
+
+    itemButton.InputEnded:Connect(function(input)
+        if (input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch) and not isMoved then
+            onClickCallback()
+        end
+    end)
+end
+
+---------------------------------------------------------
 -- Sakura Effect
 ---------------------------------------------------------
 local TweenService = game:GetService("TweenService")
@@ -330,7 +361,6 @@ end)
 -- Watermark Button
 ---------------------------------------------------------
 local CoreGui = game:GetService("CoreGui")
-local UserInputService = game:GetService("UserInputService")
 
 if CoreGui:FindFirstChild("KornluvEllyWatermark") then
     CoreGui:FindFirstChild("KornluvEllyWatermark"):Destroy()
@@ -557,7 +587,6 @@ do
         isAutoDungeon = Value
 
         if isAutoDungeon then
-            -- Target Lock & Position Update
             dungeonConnection = game:GetService("RunService").Heartbeat:Connect(function()
                 local player = game.Players.LocalPlayer
                 if not (player.Character and player.Character:FindFirstChild("HumanoidRootPart")) then return end
@@ -578,22 +607,18 @@ do
                 end
             end)
 
-            -- 4-Hit Combo -> 1 Second Delay Loop
             attackThread = task.spawn(function()
                 local signalEvent = game:GetService("ReplicatedStorage"):WaitForChild("Communication"):WaitForChild("ServerAndClient"):WaitForChild("Signals"):WaitForChild("SignalEvent")
                 local signalRemote = signalEvent:FindFirstChild("Event") or signalEvent
 
                 while isAutoDungeon do
                     if IsMobAlive(currentTargetMob) then
-                        -- Attack 4 Hits rapidly
                         for combo = 1, 4 do
                             pcall(function()
                                 signalRemote:FireServer("Combat_Service", "Combat", combo, false, 0, false)
                             end)
-                            task.wait(0.05) -- Very slight gap between each of the 4 hits
+                            task.wait(0.05)
                         end
-                        
-                        -- Rest for 1 second after 4 hits
                         task.wait(1)
                     else
                         task.wait(0.1)
@@ -613,6 +638,9 @@ do
         end
     end)
 
+    ---------------------------------------------------------
+    -- Card Selection Dropdowns (Mobile Optimized Drag Filter)
+    ---------------------------------------------------------
     local SelectCardDropdown = Tabs.Main:AddDropdown("SelectCard", {
         Title = "Select Card",
         Description = "Select cards to auto pick",
@@ -629,6 +657,35 @@ do
         Default = {}
     })
 
+    -- Apply touch-drag vs tap filter to dropdowns
+    task.spawn(function()
+        task.wait(1)
+        for _, dropdownObj in pairs({SelectCardDropdown, BlacklistCardDropdown}) do
+            if dropdownObj and dropdownObj.Frame then
+                local scroll = dropdownObj.Frame:FindFirstChildWhichIsA("ScrollingFrame", true)
+                if scroll then
+                    for _, child in pairs(scroll:GetChildren()) do
+                        if child:IsA("TextButton") or child:IsA("ImageButton") then
+                            local rawConnections = getconnections(child.MouseButton1Click)
+                            for _, conn in pairs(rawConnections) do
+                                local func = conn.Function
+                                if func then
+                                    conn:Disable()
+                                    AttachMobileDragFilter(scroll, child, function()
+                                        func()
+                                    end)
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end)
+
+    ---------------------------------------------------------
+    -- Heal Card Slider (Mobile Friendly Controls)
+    ---------------------------------------------------------
     local HealCardSlider = Tabs.Main:AddSlider("HealCardBelowHP", {
         Title = "Heal Card Below HP %",
         Description = "Adjust HP threshold for Heal Card",
@@ -640,6 +697,56 @@ do
             print("Heal Card HP %:", Value)
         end
     })
+
+    -- Mobile Plus/Minus Buttons Injector for Sliders
+    local function MobileOptimizeSlider(sliderObject)
+        task.spawn(function()
+            task.wait(0.5)
+            if not sliderObject or not sliderObject.Frame then return end
+            
+            local sliderContainer = sliderObject.Frame
+            local sliderBar = sliderContainer:FindFirstChildWhichIsA("Frame", true)
+            if not sliderBar then return end
+
+            local parentFrame = sliderBar.Parent
+
+            local minusBtn = Instance.new("TextButton")
+            minusBtn.Name = "MobileMinusBtn"
+            minusBtn.Size = UDim2.fromOffset(32, 32)
+            minusBtn.Position = UDim2.new(0, -38, 0.5, -16)
+            minusBtn.BackgroundColor3 = Color3.fromRGB(255, 215, 225)
+            minusBtn.Text = "-"
+            minusBtn.TextColor3 = Color3.fromRGB(80, 80, 80)
+            minusBtn.Font = Enum.Font.SourceSansBold
+            minusBtn.TextSize = 22
+            minusBtn.Parent = parentFrame
+            Instance.new("UICorner", minusBtn).CornerRadius = UDim.new(0, 6)
+
+            local plusBtn = Instance.new("TextButton")
+            plusBtn.Name = "MobilePlusBtn"
+            plusBtn.Size = UDim2.fromOffset(32, 32)
+            plusBtn.Position = UDim2.new(1, 6, 0.5, -16)
+            plusBtn.BackgroundColor3 = Color3.fromRGB(255, 215, 225)
+            plusBtn.Text = "+"
+            plusBtn.TextColor3 = Color3.fromRGB(80, 80, 80)
+            plusBtn.Font = Enum.Font.SourceSansBold
+            plusBtn.TextSize = 22
+            plusBtn.Parent = parentFrame
+            Instance.new("UICorner", plusBtn).CornerRadius = UDim.new(0, 6)
+
+            minusBtn.MouseButton1Click:Connect(function()
+                local curVal = sliderObject.Value or 50
+                sliderObject:SetValue(math.clamp(curVal - 1, sliderObject.Min or 1, sliderObject.Max or 100))
+            end)
+
+            plusBtn.MouseButton1Click:Connect(function()
+                local curVal = sliderObject.Value or 50
+                sliderObject:SetValue(math.clamp(curVal + 1, sliderObject.Min or 1, sliderObject.Max or 100))
+            end)
+        end)
+    end
+
+    MobileOptimizeSlider(HealCardSlider)
 
     local AutoPickCardToggle = Tabs.Main:AddToggle("AutoPickCard", {
         Title = "Auto Pick Card",
@@ -707,6 +814,8 @@ do
             speedValue = Value
         end
     })
+
+    MobileOptimizeSlider(SpeedSlider)
 
     SpeedToggle:OnChanged(function(Value)
         isSpeedActive = Value
