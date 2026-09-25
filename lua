@@ -6,7 +6,7 @@ local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.
 -- Intro Loading Screen
 ---------------------------------------------------------
 local INTRO_IMAGE = "rbxassetid://92577004509867"
-local INTRO_TITLE = "ลาบนิวกับโช"
+local INTRO_TITLE = "KornluvElly"
 local INTRO_TIME  = 4.5 
 
 local function ResolveIntroImage(src)
@@ -189,7 +189,7 @@ end
 PlayIntro()
 
 ---------------------------------------------------------
--- สร้างหน้าต่างหลัก (Window)
+-- Main Window
 ---------------------------------------------------------
 local Window = KornluvElly:CreateWindow({
     Title = "KornluvElly",
@@ -202,7 +202,7 @@ local Window = KornluvElly:CreateWindow({
 })
 
 ---------------------------------------------------------
--- ระบบเอฟเฟกต์ซากุระร่วง
+-- Sakura Effect
 ---------------------------------------------------------
 local TweenService = game:GetService("TweenService")
 local isSakuraActive = false
@@ -267,7 +267,7 @@ local function StartSakuraEffect(targetParent)
 end
 
 ---------------------------------------------------------
--- ใส่รูปภาพพื้นหลัง
+-- UI Background
 ---------------------------------------------------------
 task.spawn(function()
     local rootGui = Window.Root or (Window.UIElements and Window.UIElements.Main)
@@ -327,7 +327,7 @@ task.spawn(function()
 end)
 
 ---------------------------------------------------------
--- ปุ่ม Watermark
+-- Watermark Button
 ---------------------------------------------------------
 local CoreGui = game:GetService("CoreGui")
 local UserInputService = game:GetService("UserInputService")
@@ -409,7 +409,7 @@ UserInputService.InputChanged:Connect(function(input)
 end)
 
 ---------------------------------------------------------
--- ส่วนของ Tabs
+-- Tabs Setup
 ---------------------------------------------------------
 local Tabs = {
     Main = Window:AddTab({ Title = "Main", Icon = "home" }),
@@ -421,7 +421,7 @@ local Options = KornluvElly.Options
 
 do
     ---------------------------------------------------------
-    -- หมวดหมู่: Dungeon (Main Tab)
+    -- Dungeon Section (Main Tab)
     ---------------------------------------------------------
     Tabs.Main:AddSection("Dungeon")
 
@@ -497,11 +497,11 @@ do
     end)
 
     ---------------------------------------------------------
-    -- Auto Dungeon (ปรับปรุงใหม่: ยิงรัวความเร็วสูง + ไม่ติดบัค)
+    -- Auto Dungeon (Continuous Fast Attack & Lock System)
     ---------------------------------------------------------
     local isAutoDungeon = false
     local dungeonConnection = nil
-    local attackThread = nil
+    local attackConnection = nil
     local currentTargetMob = nil 
 
     local DISTANCE = 6.5
@@ -509,7 +509,6 @@ do
     local OFFSET_Y = -1
     local OFFSET_Z = 0
 
-    -- เช็คสถานะ Mob แบบแม่นยำ
     local function IsMobAlive(mob)
         if mob and mob.Parent and mob:IsDescendantOf(workspace) then
             local hum = mob:FindFirstChildOfClass("Humanoid")
@@ -521,7 +520,6 @@ do
         return false
     end
 
-    -- ค้นหา Mob ที่ใกล้ที่สุดในระยะ 1250 Studs
     local function GetClosestMob(maxDistance)
         local player = game.Players.LocalPlayer
         if not (player.Character and player.Character:FindFirstChild("HumanoidRootPart")) then return nil end
@@ -537,7 +535,7 @@ do
                     local mobHrp = mobChar:FindFirstChild("HumanoidRootPart") or mobChar:FindFirstChild("Head") or mobChar.PrimaryPart
                     if mobHrp then
                         local dist = (mobHrp.Position - myPos).Magnitude
-                      if dist <= shortestDist then
+                        if dist <= shortestDist then
                             shortestDist = dist
                             closestMob = mobChar
                         end
@@ -550,8 +548,8 @@ do
     end
 
     local AutoDungeonToggle = Tabs.Main:AddToggle("AutoDungeon", {
-        Title = "Auto Dungeon (Fast Attack)",
-        Description = "ล็อคเป้าหมายในระยะ 1250, TP Offset, ก้มหน้า 90° และโจมตีรัวๆ",
+        Title = "Auto Dungeon (Infinite Fast Hit)",
+        Description = "Locks target within 1250 studs, continuous high-speed attack",
         Default = false
     })
 
@@ -559,12 +557,11 @@ do
         isAutoDungeon = Value
 
         if isAutoDungeon then
-            -- ลูปวาร์ปตามติดมอนสเตอร์
+            -- Position & CFrame Follow Loop
             dungeonConnection = game:GetService("RunService").Heartbeat:Connect(function()
                 local player = game.Players.LocalPlayer
                 if not (player.Character and player.Character:FindFirstChild("HumanoidRootPart")) then return end
 
-                -- ถ้าเป้าหมายตายหรือไม่อยู่แล้ว ให้สแกนใหม่ทันที
                 if not IsMobAlive(currentTargetMob) then
                     currentTargetMob = GetClosestMob(1250)
                 end
@@ -575,34 +572,30 @@ do
                         local targetPos = mobPart.Position + Vector3.new(OFFSET_X, DISTANCE + OFFSET_Y, OFFSET_Z)
                         local targetCFrame = CFrame.new(targetPos) * CFrame.Angles(math.rad(-90), 0, 0)
                         
-                        -- ปรับ CFrame ตัวละคร + ปิดความเร็วแนวดิ่งเพื่อป้องกันการตกสั่น
                         player.Character.HumanoidRootPart.CFrame = targetCFrame
                         player.Character.HumanoidRootPart.Velocity = Vector3.new(0, 0, 0)
                     end
                 end
             end)
 
-            -- ลูปรัวการโจมตี (Fast Spam M1)
-            attackThread = task.spawn(function()
-                local signalEvent = game:GetService("ReplicatedStorage"):WaitForChild("Communication"):WaitForChild("ServerAndClient"):WaitForChild("Signals"):WaitForChild("SignalEvent")
-                local signalRemote = signalEvent:FindFirstChild("Event") or signalEvent
+            -- Continuous RenderStepped Fast Attack Loop
+            local signalEvent = game:GetService("ReplicatedStorage"):WaitForChild("Communication"):WaitForChild("ServerAndClient"):WaitForChild("Signals"):WaitForChild("SignalEvent")
+            local signalRemote = signalEvent:FindFirstChild("Event") or signalEvent
 
-                while isAutoDungeon do
-                    if IsMobAlive(currentTargetMob) then
-                        local args = {
-                            [1] = "Combat_Service",
-                            [2] = "Combat",
-                            [3] = 1,
-                            [4] = false,
-                            [5] = 0.13,
-                            [6] = false
-                        }
-                        
-                        pcall(function()
-                            signalRemote:FireServer(unpack(args))
-                        end)
-                    end
-                    task.wait(0.03) -- เร่งความเร็วการโจมตีแบบปลอดภัย ไม่หลุดสแกน
+            local args = {
+                [1] = "Combat_Service",
+                [2] = "Combat",
+                [3] = 1,
+                [4] = false,
+                [5] = 0.13,
+                [6] = false
+            }
+
+            attackConnection = game:GetService("RunService").RenderStepped:Connect(function()
+                if isAutoDungeon then
+                    pcall(function()
+                        signalRemote:FireServer(unpack(args))
+                    end)
                 end
             end)
         else
@@ -611,9 +604,9 @@ do
                 dungeonConnection:Disconnect()
                 dungeonConnection = nil
             end
-            if attackThread then
-                task.cancel(attackThread)
-                attackThread = nil
+            if attackConnection then
+                attackConnection:Disconnect()
+                attackConnection = nil
             end
         end
     end)
@@ -658,7 +651,7 @@ do
     })
 
     ---------------------------------------------------------
-    -- หมวดหมู่: Player (Player Tab)
+    -- Player Section (Player Tab)
     ---------------------------------------------------------
     Tabs.Player:AddSection("Player")
 
@@ -667,7 +660,7 @@ do
 
     local NoClipToggle = Tabs.Player:AddToggle("NoClipToggle", {
         Title = "No Clip",
-        Description = "ทำให้ตัวละครเดินทะลุกำแพงและสิ่งกีดขวาง",
+        Description = "Allows character to walk through walls",
         Default = false
     })
 
@@ -697,13 +690,13 @@ do
 
     local SpeedToggle = Tabs.Player:AddToggle("SpeedToggle", {
         Title = "Player Speed",
-        Description = "เปิด/ปิด การใช้งานความเร็วตัวละครแบบกำหนดเอง",
+        Description = "Toggle custom walk speed",
         Default = false
     })
 
     local SpeedSlider = Tabs.Player:AddSlider("SpeedSlider", {
         Title = "Speed Value",
-        Description = "ปรับระดับความเร็ว (1 - 200)",
+        Description = "Adjust walk speed (1 - 200)",
         Default = 16,
         Min = 1,
         Max = 200,
