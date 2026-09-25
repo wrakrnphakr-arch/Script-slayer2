@@ -497,11 +497,11 @@ do
     end)
 
     ---------------------------------------------------------
-    -- Auto Dungeon (Max Speed Instant Hit Engine)
+    -- Auto Dungeon (4-Hit Combo -> 1-Sec Rest Loop)
     ---------------------------------------------------------
     local isAutoDungeon = false
     local dungeonConnection = nil
-    local attackThreads = {}
+    local attackThread = nil
     local currentTargetMob = nil 
 
     local DISTANCE = 6.5
@@ -548,8 +548,8 @@ do
     end
 
     local AutoDungeonToggle = Tabs.Main:AddToggle("AutoDungeon", {
-        Title = "Auto Dungeon (Max Speed Hit)",
-        Description = "Locks target within 1250 studs, maximum speed instant attack",
+        Title = "Auto Dungeon (4 Hits + 1s Rest)",
+        Description = "Attacks 4 times continuously, pauses for 1 second, and repeats",
         Default = false
     })
 
@@ -557,7 +557,7 @@ do
         isAutoDungeon = Value
 
         if isAutoDungeon then
-            -- Position & CFrame Target Lock
+            -- Target Lock & Position Update
             dungeonConnection = game:GetService("RunService").Heartbeat:Connect(function()
                 local player = game.Players.LocalPlayer
                 if not (player.Character and player.Character:FindFirstChild("HumanoidRootPart")) then return end
@@ -578,36 +578,38 @@ do
                 end
             end)
 
-            -- Parallel Multi-Threaded Remote Spamming (Zero Delay)
-            local signalEvent = game:GetService("ReplicatedStorage"):WaitForChild("Communication"):WaitForChild("ServerAndClient"):WaitForChild("Signals"):WaitForChild("SignalEvent")
-            local signalRemote = signalEvent:FindFirstChild("Event") or signalEvent
+            -- 4-Hit Combo -> 1 Second Delay Loop
+            attackThread = task.spawn(function()
+                local signalEvent = game:GetService("ReplicatedStorage"):WaitForChild("Communication"):WaitForChild("ServerAndClient"):WaitForChild("Signals"):WaitForChild("SignalEvent")
+                local signalRemote = signalEvent:FindFirstChild("Event") or signalEvent
 
-            attackThreads = {}
-            for i = 1, 3 do
-                local t = task.spawn(function()
-                    while isAutoDungeon do
-                        if IsMobAlive(currentTargetMob) then
-                            for combo = 1, 4 do
-                                pcall(function()
-                                    signalRemote:FireServer("Combat_Service", "Combat", combo, false, 0, false)
-                                end)
-                            end
+                while isAutoDungeon do
+                    if IsMobAlive(currentTargetMob) then
+                        -- Attack 4 Hits rapidly
+                        for combo = 1, 4 do
+                            pcall(function()
+                                signalRemote:FireServer("Combat_Service", "Combat", combo, false, 0, false)
+                            end)
+                            task.wait(0.05) -- Very slight gap between each of the 4 hits
                         end
-                        task.wait()
+                        
+                        -- Rest for 1 second after 4 hits
+                        task.wait(1)
+                    else
+                        task.wait(0.1)
                     end
-                end)
-                table.insert(attackThreads, t)
-            end
+                end
+            end)
         else
             currentTargetMob = nil
             if dungeonConnection then
                 dungeonConnection:Disconnect()
                 dungeonConnection = nil
             end
-            for _, t in ipairs(attackThreads) do
-                task.cancel(t)
+            if attackThread then
+                task.cancel(attackThread)
+                attackThread = nil
             end
-            attackThreads = {}
         end
     end)
 
