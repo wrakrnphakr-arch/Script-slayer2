@@ -501,7 +501,7 @@ do
     end)
 
     ---------------------------------------------------------
-    -- Auto Dungeon + วงแหวนขอบสีแดง 3 ระดับ (750, 500, 250)
+    -- Auto Dungeon + วงแหวนขอบสีแดงเข้ม 3 ระดับ (ทะลุกำแพง + ไม่มีเนื้อข้างใน)
     ---------------------------------------------------------
     local circleContainer = {}
     local dungeonConnection = nil
@@ -510,22 +510,20 @@ do
         local part = Instance.new("Part")
         part.Name = "AutoDungeonCircle_" .. tostring(radiusSize)
         part.Shape = Enum.PartType.Cylinder
-        part.Size = Vector3.new(0.2, radiusSize, radiusSize)
-        part.Transparency = 0.9 -- จางบางๆ เพื่อให้เอนจินวาดเส้น Highlight ครบวง
-        part.Color = Color3.fromRGB(255, 0, 0)
-        part.Material = Enum.Material.SmoothPlastic
+        part.Size = Vector3.new(0.01, radiusSize, radiusSize)
+        part.Transparency = 1
         part.Anchored = true
         part.CanCollide = false
         part.CastShadow = false
         part.Parent = workspace
 
-        local highlight = Instance.new("Highlight")
-        highlight.Name = "CircleOutline"
-        highlight.Adornee = part
-        highlight.FillTransparency = 1 -- ไม่ลงสีทึบด้านใน
-        highlight.OutlineColor = Color3.fromRGB(255, 0, 0) -- ขอบสีแดง
-        highlight.OutlineTransparency = 0 -- ขอบชัดเจน 100%
-        highlight.Parent = part
+        local box = Instance.new("SelectionBox")
+        box.Name = "RedOutline"
+        box.Adornee = part
+        box.Color3 = Color3.fromRGB(139, 0, 0) -- สีแดงเข้ม
+        box.LineThickness = 0.05
+        box.SurfaceTransparency = 1
+        box.Parent = part
 
         return part
     end
@@ -549,7 +547,7 @@ do
                 local player = game.Players.LocalPlayer
                 if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
                     local hrp = player.Character.HumanoidRootPart
-                    local targetCFrame = CFrame.new(hrp.Position + Vector3.new(0, 0.5, 0)) * CFrame.Angles(0, 0, math.rad(90))
+                    local targetCFrame = CFrame.new(hrp.Position) * CFrame.Angles(0, 0, math.rad(90))
                     
                     for _, circle in ipairs(circleContainer) do
                         if circle and circle.Parent then
@@ -680,4 +678,4 @@ do
             end
         end
     end)
-end
+end        
