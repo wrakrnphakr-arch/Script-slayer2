@@ -759,13 +759,12 @@ while true do
                                 if not isPlayer and obj.Health > 0 and obj.MaxHealth > 0 then
                                     local hpPercent = (obj.Health / obj.MaxHealth) * 100
                                     
- ---------------------------------------------------------
--- Combat Tab & Instant Kill Logic (Dynamic Weapon + Fast Loop)
+---------------------------------------------------------
+-- Combat Tab & Instant Kill Logic
 ---------------------------------------------------------
 local isInstantKill = false
-local instantKillHPThreshold = 100 -- Default 100%
+local instantKillHPThreshold = 100
 
--- ฟังก์ชั่นสำหรับดึงชื่ออาวุธที่ถืออยู่ในมือ
 local function GetEquippedWeaponName()
     local player = game.Players.LocalPlayer
     if player and player.Character then
@@ -777,13 +776,9 @@ local function GetEquippedWeaponName()
     return nil
 end
 
--- เพิ่ม Tab Combat
 Tabs.Combat = Window:AddTab({ Title = "Combat", Icon = "swords" })
 
 do
-    ---------------------------------------------------------
-    -- Setup Section
-    ---------------------------------------------------------
     Tabs.Combat:AddSection("Setup")
 
     local InstantKillToggle = Tabs.Combat:AddToggle("InstantKillToggle", {
@@ -824,24 +819,20 @@ do
                     local player = game.Players.LocalPlayer
                     local currentWeapon = GetEquippedWeaponName()
 
-                    -- จะทำงานต่อเมื่อมีการถืออาวุธอยู่ในมือเท่านั้น
                     if player and player.Character and currentWeapon then
                         for _, obj in pairs(workspace:GetDescendants()) do
                             if obj:IsA("Humanoid") and obj.Parent and obj.Parent ~= player.Character then
                                 local targetChar = obj.Parent
                                 local isPlayer = game.Players:GetPlayerFromCharacter(targetChar)
                                 
-                                -- ทำงานกับมอนสเตอร์/บอสที่ยังมีชีวิต
                                 if not isPlayer and obj.Health > 0 and obj.MaxHealth > 0 then
                                     local hpPercent = (obj.Health / obj.MaxHealth) * 100
                                     
-                                    -- ตรวจสอบว่า HP % ต่ำกว่าหรือเท่ากับ Threshold ที่ตั้งไว้หรือไม่
                                     if hpPercent <= instantKillHPThreshold then
-                                        -- ยิง Remote รัวๆ 5 ชุด เพื่อสร้าง Damage ต่อเนื่องทันที
                                         for combo = 1, 5 do
                                             signalRemote:FireServer(
                                                 "Combat_Service",
-                                                currentWeapon, -- ดึงชื่ออาวุธที่ถืออยู่โดยอัตโนมัติ
+                                                currentWeapon,
                                                 combo,
                                                 false,
                                                 0.06310679611650488,
@@ -855,10 +846,10 @@ do
                     end
                 end)
             end
-            task.wait(0.1) -- ความถี่ในการสแกนหาเป้าหมาย
+            task.wait(0.1)
         end
     end)
-end
+end -- <--- อย่าลืม end สำหรับปิดบล็อก do ด้านบน
 
 ---------------------------------------------------------
 -- 3. Player Tab
