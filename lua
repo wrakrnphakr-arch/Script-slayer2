@@ -584,82 +584,77 @@ do
     })
 
     local AutoPickCardToggle = Tabs.Main:AddToggle("AutoPickCard", {
-        Title = "Auto Pick Card",
-        Description = "Picks from Select Card & Ignores Blacklist Card",
-        Default = false
-    })
-
-    local AutoSkipToggle = Tabs.Main:AddToggle("AutoSkip", {
-        Title = "Auto Skip",
-        Default = false
-    })
-
     ---------------------------------------------------------
-    -- หมวดหมู่: Player (Player Tab)
+    -- Auto Dungeon + วงแหวนขอบสีแดง 3 ระดับ (750, 500, 250 Studs)
     ---------------------------------------------------------
-    Tabs.Player:AddSection("Player")
+    local circleContainer = {}
+    local dungeonConnection = nil
 
-    local noclipConnection
-    local isNoclip = false
+    -- ฟังก์ชันสำหรับสร้างวงแหวนขอบสีแดง
+    local function CreateRing(radiusSize)
+        local part = Instance.new("Part")
+        part.Name = "AutoDungeonCircle_" .. tostring(radiusSize)
+        part.Shape = Enum.PartType.Cylinder
+        part.Size = Vector3.new(0.05, radiusSize, radiusSize)
+        part.Transparency = 1 -- ซ่อนเนื้อวงกลมด้านใน
+        part.Anchored = true
+        part.CanCollide = false
+        part.CastShadow = false
+        part.Parent = workspace
 
-    local NoClipToggle = Tabs.Player:AddToggle("NoClipToggle", {
-        Title = "No Clip",
-        Description = "ทำให้ตัวละครเดินทะลุกำแพงและสิ่งกีดขวาง",
+        local highlight = Instance.new("Highlight")
+        highlight.Name = "CircleOutline"
+        highlight.Adornee = part
+        highlight.FillTransparency = 1 -- ลบสีพื้นหลังด้านใน
+        highlight.OutlineColor = Color3.fromRGB(255, 0, 0) -- สีแดง
+        highlight.OutlineTransparency = 0 -- เส้นขอบเข้มชัดเจน
+        highlight.Parent = part
+
+        return part
+    end
+
+    local AutoDungeonToggle = Tabs.Main:AddToggle("AutoDungeon", {
+        Title = "Auto Dungeon",
         Default = false
     })
 
-    NoClipToggle:OnChanged(function(Value)
-        isNoclip = Value
-        if isNoclip then
-            noclipConnection = game:GetService("RunService").Stepped:Connect(function()
+    AutoDungeonToggle:OnChanged(function(Value)
+        print("Auto Dungeon Status:", Value)
+        
+        if Value then
+            -- สร้างวงกลมขอบสีแดง 3 ระดับ
+            if #circleContainer == 0 then
+                table.insert(circleContainer, CreateRing(750))
+                table.insert(circleContainer, CreateRing(500))
+                table.insert(circleContainer, CreateRing(250))
+            end
+
+            -- อัปเดตตำแหน่งวงกลมทั้ง 3 ให้อยู่ระดับเอวล่างของตัวละครตลอดเวลา
+            dungeonConnection = game:GetService("RunService").RenderStepped:Connect(function()
                 local player = game.Players.LocalPlayer
-                if player.Character then
-                    for _, part in pairs(player.Character:GetDescendants()) do
-                        if part:IsA("BasePart") and part.CanCollide then
-                            part.CanCollide = false
+                if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                    local hrp = player.Character.HumanoidRootPart
+                    local targetCFrame = CFrame.new(hrp.Position + Vector3.new(0, 0.5, 0)) * CFrame.Angles(0, 0, math.rad(90))
+                    
+                    for _, circle in ipairs(circleContainer) do
+                        if circle and circle.Parent then
+                            circle.CFrame = targetCFrame
                         end
                     end
                 end
             end)
         else
-            if noclipConnection then
-                noclipConnection:Disconnect()
-                noclipConnection = nil
+            -- ยกเลิกการอัปเดตและลบวงกลมทั้งหมดเมื่อปิดใช้งาน
+            if dungeonConnection then
+                dungeonConnection:Disconnect()
+                dungeonConnection = nil
             end
-        end
-    end)
-
-    local isSpeedActive = false
-    local speedValue = 16
-
-    local SpeedToggle = Tabs.Player:AddToggle("SpeedToggle", {
-        Title = "Player Speed",
-        Description = "เปิด/ปิด การใช้งานความเร็วตัวละครแบบกำหนดเอง",
-        Default = false
-    })
-
-    local SpeedSlider = Tabs.Player:AddSlider("SpeedSlider", {
-        Title = "Speed Value",
-        Description = "ปรับระดับความเร็ว (1 - 200)",
-        Default = 16,
-        Min = 1,
-        Max = 200,
-        Rounding = 0,
-        Callback = function(Value)
-            speedValue = Value
-        end
-    })
-
-    SpeedToggle:OnChanged(function(Value)
-        isSpeedActive = Value
-    end)
-
-    game:GetService("RunService").RenderStepped:Connect(function()
-        if isSpeedActive then
-            local player = game.Players.LocalPlayer
-            if player.Character and player.Character:FindFirstChild("Humanoid") then
-                player.Character.Humanoid.WalkSpeed = speedValue
+            
+            for _, circle in ipairs(circleContainer) do
+                if circle then
+                    circle:Destroy()
+                end
             end
+            circleContainer = {}
         end
     end)
-end
