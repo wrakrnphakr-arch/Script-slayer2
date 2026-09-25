@@ -501,80 +501,17 @@ do
     end)
 
     ---------------------------------------------------------
-    -- Auto Dungeon + เส้นขอบวงกลมสีแดง 800 Studs (ระดับเอวล่าง)
-    ---------------------------------------------------------
-    local dungeonCircle = nil
-    local circleOutline = nil
-    local dungeonConnection = nil
-
-    local AutoDungeonToggle = Tabs.Main:AddToggle("AutoDungeon", {
-        Title = "Auto Dungeon",
-        Default = false
-    })
-
-    AutoDungeonToggle:OnChanged(function(Value)
-        print("Auto Dungeon Status:", Value)
-        
-        if Value then
-            if not dungeonCircle then
-                dungeonCircle = Instance.new("Part")
-                dungeonCircle.Name = "AutoDungeonRangeCircle"
-                dungeonCircle.Shape = Enum.PartType.Cylinder
-                dungeonCircle.Size = Vector3.new(0.2, 800, 800)
-                dungeonCircle.Transparency = 1
-                dungeonCircle.Anchored = true
-                dungeonCircle.CanCollide = false
-                dungeonCircle.CastShadow = false
-                dungeonCircle.Parent = workspace
-
-                circleOutline = Instance.new("SelectionBox")
-                circleOutline.Name = "CircleOutline"
-                circleOutline.Color3 = Color3.fromRGB(255, 0, 0)
-                circleOutline.LineThickness = 0.05
-                circleOutline.Adornee = dungeonCircle
-                circleOutline.Parent = dungeonCircle
-            end
-
-            dungeonConnection = game:GetService("RunService").RenderStepped:Connect(function()
-                local player = game.Players.LocalPlayer
-                if player.Character and player.Character:FindFirstChild("HumanoidRootPart") and dungeonCircle then
-                    local hrp = player.Character.HumanoidRootPart
-                    dungeonCircle.CFrame = CFrame.new(hrp.Position + Vector3.new(0, 0.5, 0)) * CFrame.Angles(0, 0, math.rad(90))
-                end
-            end)
-        else
-            if dungeonConnection then
-                dungeonConnection:Disconnect()
-                dungeonConnection = nil
-            end
-            if dungeonCircle then
-                dungeonCircle:Destroy()
-                dungeonCircle = nil
-                circleOutline = nil
-            end
-        end
-    end)
-
-    local SelectCardDropdown = Tabs.Main:AddDropdown("SelectCard", {
-        Title = "Select Card",
-        Description = "Select cards to auto pick",
-        Values = {"Card 1", "Card 2", "Card 3", "Card 4", "Card 5", "Card 6", "Card 7"},
-        Multi = true,
-        Default = {}
-    })
-    ---------------------------------------------------------
     -- Auto Dungeon + วงแหวนขอบสีแดง 3 ระดับ (750, 500, 250 Studs)
     ---------------------------------------------------------
     local circleContainer = {}
     local dungeonConnection = nil
 
-    -- ฟังก์ชันสำหรับสร้างวงแหวนขอบสีแดง
     local function CreateRing(radiusSize)
         local part = Instance.new("Part")
         part.Name = "AutoDungeonCircle_" .. tostring(radiusSize)
         part.Shape = Enum.PartType.Cylinder
         part.Size = Vector3.new(0.05, radiusSize, radiusSize)
-        part.Transparency = 1 -- ซ่อนเนื้อวงกลมด้านใน
+        part.Transparency = 1
         part.Anchored = true
         part.CanCollide = false
         part.CastShadow = false
@@ -583,9 +520,9 @@ do
         local highlight = Instance.new("Highlight")
         highlight.Name = "CircleOutline"
         highlight.Adornee = part
-        highlight.FillTransparency = 1 -- ลบสีพื้นหลังด้านใน
-        highlight.OutlineColor = Color3.fromRGB(255, 0, 0) -- สีแดง
-        highlight.OutlineTransparency = 0 -- เส้นขอบเข้มชัดเจน
+        highlight.FillTransparency = 1
+        highlight.OutlineColor = Color3.fromRGB(255, 0, 0)
+        highlight.OutlineTransparency = 0
         highlight.Parent = part
 
         return part
@@ -600,15 +537,13 @@ do
         print("Auto Dungeon Status:", Value)
         
         if Value then
-            -- สร้างวงกลมขอบสีแดง 3 ระดับ
             if #circleContainer == 0 then
                 table.insert(circleContainer, CreateRing(750))
                 table.insert(circleContainer, CreateRing(500))
                 table.insert(circleContainer, CreateRing(250))
             end
 
-            -- อัปเดตตำแหน่งวงกลมทั้ง 3 ให้อยู่ระดับเอวล่างของตัวละครตลอดเวลา
-            dungeonConnection = game:GetService("RunService").RenderStepped:Connect(function()
+         dungeonConnection = game:GetService("RunService").RenderStepped:Connect(function()
                 local player = game.Players.LocalPlayer
                 if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
                     local hrp = player.Character.HumanoidRootPart
@@ -622,7 +557,6 @@ do
                 end
             end)
         else
-            -- ยกเลิกการอัปเดตและลบวงกลมทั้งหมดเมื่อปิดใช้งาน
             if dungeonConnection then
                 dungeonConnection:Disconnect()
                 dungeonConnection = nil
@@ -636,3 +570,4 @@ do
             circleContainer = {}
         end
     end)
+end
