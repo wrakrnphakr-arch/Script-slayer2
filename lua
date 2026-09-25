@@ -1,6 +1,7 @@
 local KornluvElly = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
 local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
+
 ---------------------------------------------------------
 -- Intro Loading Screen (รูปเดิม + โทนชมพูพาสเทลอ่อน)
 ---------------------------------------------------------
@@ -500,9 +501,10 @@ do
     end)
 
     ---------------------------------------------------------
-    -- Auto Dungeon + วงกลมระยะ 500 Studs สีแดง
+    -- Auto Dungeon + เส้นขอบวงกลมสีแดง 800 Studs (ระดับเอวล่าง)
     ---------------------------------------------------------
     local dungeonCircle = nil
+    local circleOutline = nil
     local dungeonConnection = nil
 
     local AutoDungeonToggle = Tabs.Main:AddToggle("AutoDungeon", {
@@ -518,21 +520,26 @@ do
                 dungeonCircle = Instance.new("Part")
                 dungeonCircle.Name = "AutoDungeonRangeCircle"
                 dungeonCircle.Shape = Enum.PartType.Cylinder
-                dungeonCircle.Size = Vector3.new(0.5, 500, 500)
-                dungeonCircle.Color = Color3.fromRGB(255, 0, 0)
-                dungeonCircle.Material = Enum.Material.Neon
-                dungeonCircle.Transparency = 0.6
+                dungeonCircle.Size = Vector3.new(0.2, 800, 800)
+                dungeonCircle.Transparency = 1
                 dungeonCircle.Anchored = true
                 dungeonCircle.CanCollide = false
                 dungeonCircle.CastShadow = false
                 dungeonCircle.Parent = workspace
+
+                circleOutline = Instance.new("SelectionBox")
+                circleOutline.Name = "CircleOutline"
+                circleOutline.Color3 = Color3.fromRGB(255, 0, 0)
+                circleOutline.LineThickness = 0.05
+                circleOutline.Adornee = dungeonCircle
+                circleOutline.Parent = dungeonCircle
             end
 
             dungeonConnection = game:GetService("RunService").RenderStepped:Connect(function()
                 local player = game.Players.LocalPlayer
                 if player.Character and player.Character:FindFirstChild("HumanoidRootPart") and dungeonCircle then
                     local hrp = player.Character.HumanoidRootPart
-                    dungeonCircle.CFrame = CFrame.new(hrp.Position - Vector3.new(0, 3, 0)) * CFrame.Angles(0, 0, math.rad(90))
+                    dungeonCircle.CFrame = CFrame.new(hrp.Position + Vector3.new(0, 0.5, 0)) * CFrame.Angles(0, 0, math.rad(90))
                 end
             end)
         else
@@ -543,6 +550,7 @@ do
             if dungeonCircle then
                 dungeonCircle:Destroy()
                 dungeonCircle = nil
+                circleOutline = nil
             end
         end
     end)
