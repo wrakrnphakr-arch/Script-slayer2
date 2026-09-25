@@ -232,6 +232,53 @@ local function AttachMobileDragFilter(scrollingFrame, itemButton, onClickCallbac
     end)
 end
 
+local function MobileOptimizeSlider(sliderObject)
+    task.spawn(function()
+        task.wait(0.5)
+        if not sliderObject or not sliderObject.Frame then return end
+        
+        local sliderContainer = sliderObject.Frame
+        local sliderBar = sliderContainer:FindFirstChildWhichIsA("Frame", true)
+        if not sliderBar then return end
+
+        local parentFrame = sliderBar.Parent
+
+        local minusBtn = Instance.new("TextButton")
+        minusBtn.Name = "MobileMinusBtn"
+        minusBtn.Size = UDim2.fromOffset(32, 32)
+        minusBtn.Position = UDim2.new(0, -38, 0.5, -16)
+        minusBtn.BackgroundColor3 = Color3.fromRGB(255, 215, 225)
+        minusBtn.Text = "-"
+        minusBtn.TextColor3 = Color3.fromRGB(80, 80, 80)
+        minusBtn.Font = Enum.Font.SourceSansBold
+        minusBtn.TextSize = 22
+        minusBtn.Parent = parentFrame
+        Instance.new("UICorner", minusBtn).CornerRadius = UDim.new(0, 6)
+
+        local plusBtn = Instance.new("TextButton")
+        plusBtn.Name = "MobilePlusBtn"
+        plusBtn.Size = UDim2.fromOffset(32, 32)
+        plusBtn.Position = UDim2.new(1, 6, 0.5, -16)
+        plusBtn.BackgroundColor3 = Color3.fromRGB(255, 215, 225)
+        plusBtn.Text = "+"
+        plusBtn.TextColor3 = Color3.fromRGB(80, 80, 80)
+        plusBtn.Font = Enum.Font.SourceSansBold
+        plusBtn.TextSize = 22
+        plusBtn.Parent = parentFrame
+        Instance.new("UICorner", plusBtn).CornerRadius = UDim.new(0, 6)
+
+        minusBtn.MouseButton1Click:Connect(function()
+            local curVal = sliderObject.Value or 50
+            sliderObject:SetValue(math.clamp(curVal - 1, sliderObject.Min or 1, sliderObject.Max or 100))
+        end)
+
+        plusBtn.MouseButton1Click:Connect(function()
+            local curVal = sliderObject.Value or 50
+            sliderObject:SetValue(math.clamp(curVal + 1, sliderObject.Min or 1, sliderObject.Max or 100))
+        end)
+    end)
+end
+
 ---------------------------------------------------------
 -- Sakura Effect
 ---------------------------------------------------------
@@ -450,464 +497,386 @@ local Tabs = {
 
 local Options = KornluvElly.Options
 
-do
-    ---------------------------------------------------------
-    -- Dungeon Section (Main Tab)
-    ---------------------------------------------------------
-    Tabs.Main:AddSection("Dungeon")
+---------------------------------------------------------
+-- 1. Main Tab (Dungeon & Cards)
+---------------------------------------------------------
+Tabs.Main:AddSection("Dungeon")
 
-    local JoinDungeonToggle = Tabs.Main:AddToggle("JoinDungeon", {
-        Title = "Join Dungeon",
-        Default = false
-    })
-    
-    JoinDungeonToggle:OnChanged(function(Value)
-        if Value then
-            local player = game.Players.LocalPlayer
-            local character = player.Character or player.CharacterAdded:Wait()
-            local hrp = character:FindFirstChild("HumanoidRootPart")
-            local targetPosition = Vector3.new(-1600, 1010, 1143)
-            
-            if hrp then
-                hrp.CFrame = CFrame.new(targetPosition)
-            end
-        end
-    end)
+local JoinDungeonToggle = Tabs.Main:AddToggle("JoinDungeon", {
+    Title = "Join Dungeon",
+    Default = false
+})
 
-    local isStartDungeonActive = false
-    local StartDungeonToggle = Tabs.Main:AddToggle("StartDungeon", {
-        Title = "Start Dungeon",
-        Default = false
-    })
-    
-    StartDungeonToggle:OnChanged(function(Value)
-        isStartDungeonActive = Value
-        
-        if Value then
-            local player = game.Players.LocalPlayer
-            local character = player.Character or player.CharacterAdded:Wait()
-            local hrp = character:FindFirstChild("HumanoidRootPart")
-            
-            local targetPosition = Vector3.new(-2540, 1145, -5081)
-            if hrp then
-                hrp.CFrame = CFrame.new(targetPosition)
-            end
-            
-            task.spawn(function()
-                while isStartDungeonActive do
-                    for _, prompt in pairs(workspace:GetDescendants()) do
-                        if prompt:IsA("ProximityPrompt") and (string.find(string.lower(prompt.ObjectText), "ready") or string.find(string.lower(prompt.ActionText), "ready")) then
-                            fireproximityprompt(prompt)
-                        end
-                    end
-                    
-                    local playerGui = player:FindFirstChild("PlayerGui")
-                    if playerGui then
-                        for _, guiItem in pairs(playerGui:GetDescendants()) do
-                            if (guiItem:IsA("TextButton") or guiItem:IsA("ImageButton")) and guiItem.Visible then
-                                if guiItem:IsA("TextButton") and string.find(string.lower(guiItem.Text), "ready") then
-                                    for _, event in pairs({"MouseButton1Click", "MouseButton1Down", "Activated"}) do
-                                        for _, connection in pairs(getconnections(guiItem[event])) do
-                                            connection:Fire()
-                                        end
-                                    end
-                                elseif string.find(string.lower(guiItem.Name), "ready") then
-                                    for _, event in pairs({"MouseButton1Click", "MouseButton1Down", "Activated"}) do
-                                        for _, connection in pairs(getconnections(guiItem[event])) do
-                                            connection:Fire()
-                                        end
-                                    end
-                                end
-                            end
-                        end
-                    end
-                    task.wait(0.5)
-                end
-            end)
-        end
-    end)
-
-    ---------------------------------------------------------
-    -- Auto Dungeon (4-Hit Combo -> 1-Sec Rest Loop)
-    ---------------------------------------------------------
-    local isAutoDungeon = false
-    local dungeonConnection = nil
-    local attackThread = nil
-    local currentTargetMob = nil 
-
-    local DISTANCE = 6.5
-    local OFFSET_X = 0
-    local OFFSET_Y = -1
-    local OFFSET_Z = 0
-
-    local function IsMobAlive(mob)
-        if mob and mob.Parent and mob:IsDescendantOf(workspace) then
-            local hum = mob:FindFirstChildOfClass("Humanoid")
-            local hrp = mob:FindFirstChild("HumanoidRootPart") or mob:FindFirstChild("Head") or mob.PrimaryPart
-            if hum and hrp and hum.Health > 0 then
-                return true
-            end
-        end
-        return false
-    end
-
-    local function GetClosestMob(maxDistance)
+JoinDungeonToggle:OnChanged(function(Value)
+    if Value then
         local player = game.Players.LocalPlayer
-        if not (player.Character and player.Character:FindFirstChild("HumanoidRootPart")) then return nil end
-
-        local myPos = player.Character.HumanoidRootPart.Position
-        local closestMob = nil
-        local shortestDist = maxDistance
-
-        for _, obj in pairs(workspace:GetDescendants()) do
-            if obj:IsA("Humanoid") and obj.Parent and obj.Parent ~= player.Character then
-                local mobChar = obj.Parent
-                if IsMobAlive(mobChar) and not game.Players:GetPlayerFromCharacter(mobChar) then
-                    local mobHrp = mobChar:FindFirstChild("HumanoidRootPart") or mobChar:FindFirstChild("Head") or mobChar.PrimaryPart
-                    if mobHrp then
-                        local dist = (mobHrp.Position - myPos).Magnitude
-                        if dist <= shortestDist then
-                            shortestDist = dist
-                            closestMob = mobChar
-                        end
-                    end
-                end
-            end
+        local character = player.Character or player.CharacterAdded:Wait()
+        local hrp = character:FindFirstChild("HumanoidRootPart")
+        local targetPosition = Vector3.new(-1600, 1010, 1143)
+        
+        if hrp then
+            hrp.CFrame = CFrame.new(targetPosition)
         end
-
-        return closestMob
     end
+end)
 
-    local AutoDungeonToggle = Tabs.Main:AddToggle("AutoDungeon", {
-        Title = "Auto Dungeon (4 Hits + 1s Rest)",
-        Description = "Attacks 4 times continuously, pauses for 1 second, and repeats",
-        Default = false
-    })
+local isStartDungeonActive = false
+local StartDungeonToggle = Tabs.Main:AddToggle("StartDungeon", {
+    Title = "Start Dungeon",
+    Default = false
+})
 
-    AutoDungeonToggle:OnChanged(function(Value)
-        isAutoDungeon = Value
-
-        if isAutoDungeon then
-            dungeonConnection = game:GetService("RunService").Heartbeat:Connect(function()
-                local player = game.Players.LocalPlayer
-                if not (player.Character and player.Character:FindFirstChild("HumanoidRootPart")) then return end
-
-                if not IsMobAlive(currentTargetMob) then
-                    currentTargetMob = GetClosestMob(1250)
-                end
-
-                if IsMobAlive(currentTargetMob) then
-                    local mobPart = currentTargetMob:FindFirstChild("HumanoidRootPart") or currentTargetMob:FindFirstChild("Head") or currentTargetMob.PrimaryPart
-                    if mobPart then
-                        local targetPos = mobPart.Position + Vector3.new(OFFSET_X, DISTANCE + OFFSET_Y, OFFSET_Z)
-                        local targetCFrame = CFrame.new(targetPos) * CFrame.Angles(math.rad(-90), 0, 0)
-                        
-                        player.Character.HumanoidRootPart.CFrame = targetCFrame
-                        player.Character.HumanoidRootPart.Velocity = Vector3.new(0, 0, 0)
-                    end
-                end
-            end)
-
-            attackThread = task.spawn(function()
-                local signalEvent = game:GetService("ReplicatedStorage"):WaitForChild("Communication"):WaitForChild("ServerAndClient"):WaitForChild("Signals"):WaitForChild("SignalEvent")
-                local signalRemote = signalEvent:FindFirstChild("Event") or signalEvent
-
-                while isAutoDungeon do
-                    if IsMobAlive(currentTargetMob) then
-                        for combo = 1, 4 do
-                            pcall(function()
-                                signalRemote:FireServer("Combat_Service", "Combat", combo, false, 0, false)
-                            end)
-                            task.wait(0.05)
-                        end
-                        task.wait(1)
-                    else
-                        task.wait(0.1)
-                    end
-                end
-            end)
-        else
-            currentTargetMob = nil
-            if dungeonConnection then
-                dungeonConnection:Disconnect()
-                dungeonConnection = nil
-            end
-            if attackThread then
-                task.cancel(attackThread)
-                attackThread = nil
-            end
+StartDungeonToggle:OnChanged(function(Value)
+    isStartDungeonActive = Value
+    
+    if Value then
+        local player = game.Players.LocalPlayer
+        local character = player.Character or player.CharacterAdded:Wait()
+        local hrp = character:FindFirstChild("HumanoidRootPart")
+        
+        local targetPosition = Vector3.new(-2540, 1145, -5081)
+        if hrp then
+            hrp.CFrame = CFrame.new(targetPosition)
         end
-    end)
-
-    ---------------------------------------------------------
-    -- Card Selection Dropdowns (Mobile Optimized Drag Filter)
-    ---------------------------------------------------------
-    local SelectCardDropdown = Tabs.Main:AddDropdown("SelectCard", {
-        Title = "Select Card",
-        Description = "Select cards to auto pick",
-        Values = {"Card 1", "Card 2", "Card 3", "Card 4", "Card 5", "Card 6", "Card 7"},
-        Multi = true,
-        Default = {}
-    })
-
-    local BlacklistCardDropdown = Tabs.Main:AddDropdown("BlacklistCard", {
-        Title = "Blacklist Card",
-        Description = "Select cards to ignore",
-        Values = {"Card 1", "Card 2", "Card 3", "Card 4", "Card 5", "Card 6", "Card 7"},
-        Multi = true,
-        Default = {}
-    })
-
-    -- Apply touch-drag vs tap filter to dropdowns
-    task.spawn(function()
-        task.wait(1)
-        for _, dropdownObj in pairs({SelectCardDropdown, BlacklistCardDropdown}) do
-            if dropdownObj and dropdownObj.Frame then
-                local scroll = dropdownObj.Frame:FindFirstChildWhichIsA("ScrollingFrame", true)
-                if scroll then
-                    for _, child in pairs(scroll:GetChildren()) do
-                        if child:IsA("TextButton") or child:IsA("ImageButton") then
-                            local rawConnections = getconnections(child.MouseButton1Click)
-                            for _, conn in pairs(rawConnections) do
-                                local func = conn.Function
-                                if func then
-                                    conn:Disable()
-                                    AttachMobileDragFilter(scroll, child, function()
-                                        func()
-                                    end)
+        
+        task.spawn(function()
+            while isStartDungeonActive do
+                for _, prompt in pairs(workspace:GetDescendants()) do
+                    if prompt:IsA("ProximityPrompt") and (string.find(string.lower(prompt.ObjectText), "ready") or string.find(string.lower(prompt.ActionText), "ready")) then
+                        fireproximityprompt(prompt)
+                    end
+                end
+                
+                local playerGui = player:FindFirstChild("PlayerGui")
+                if playerGui then
+                    for _, guiItem in pairs(playerGui:GetDescendants()) do
+                        if (guiItem:IsA("TextButton") or guiItem:IsA("ImageButton")) and guiItem.Visible then
+                            if guiItem:IsA("TextButton") and string.find(string.lower(guiItem.Text), "ready") then
+                                for _, event in pairs({"MouseButton1Click", "MouseButton1Down", "Activated"}) do
+                                    for _, connection in pairs(getconnections(guiItem[event])) do
+                                        connection:Fire()
+                                    end
+                                end
+                            elseif string.find(string.lower(guiItem.Name), "ready") then
+                                for _, event in pairs({"MouseButton1Click", "MouseButton1Down", "Activated"}) do
+                                    for _, connection in pairs(getconnections(guiItem[event])) do
+                                        connection:Fire()
+                                    end
                                 end
                             end
                         end
                     end
                 end
+                task.wait(0.5)
             end
-        end
-    end)
-
-    ---------------------------------------------------------
-    -- Heal Card Slider (Mobile Friendly Controls)
-    ---------------------------------------------------------
-    local HealCardSlider = Tabs.Main:AddSlider("HealCardBelowHP", {
-        Title = "Heal Card Below HP %",
-        Description = "Adjust HP threshold for Heal Card",
-        Default = 50,
-        Min = 1,
-        Max = 100,
-        Rounding = 0,
-        Callback = function(Value)
-            print("Heal Card HP %:", Value)
-        end
-    })
-
-    -- Mobile Plus/Minus Buttons Injector for Sliders
-    local function MobileOptimizeSlider(sliderObject)
-        task.spawn(function()
-            task.wait(0.5)
-            if not sliderObject or not sliderObject.Frame then return end
-            
-            local sliderContainer = sliderObject.Frame
-            local sliderBar = sliderContainer:FindFirstChildWhichIsA("Frame", true)
-            if not sliderBar then return end
-
-            local parentFrame = sliderBar.Parent
-
-            local minusBtn = Instance.new("TextButton")
-            minusBtn.Name = "MobileMinusBtn"
-            minusBtn.Size = UDim2.fromOffset(32, 32)
-            minusBtn.Position = UDim2.new(0, -38, 0.5, -16)
-            minusBtn.BackgroundColor3 = Color3.fromRGB(255, 215, 225)
-            minusBtn.Text = "-"
-            minusBtn.TextColor3 = Color3.fromRGB(80, 80, 80)
-            minusBtn.Font = Enum.Font.SourceSansBold
-            minusBtn.TextSize = 22
-            minusBtn.Parent = parentFrame
-            Instance.new("UICorner", minusBtn).CornerRadius = UDim.new(0, 6)
-
-            local plusBtn = Instance.new("TextButton")
-            plusBtn.Name = "MobilePlusBtn"
-            plusBtn.Size = UDim2.fromOffset(32, 32)
-            plusBtn.Position = UDim2.new(1, 6, 0.5, -16)
-            plusBtn.BackgroundColor3 = Color3.fromRGB(255, 215, 225)
-            plusBtn.Text = "+"
-            plusBtn.TextColor3 = Color3.fromRGB(80, 80, 80)
-            plusBtn.Font = Enum.Font.SourceSansBold
-            plusBtn.TextSize = 22
-            plusBtn.Parent = parentFrame
-            Instance.new("UICorner", plusBtn).CornerRadius = UDim.new(0, 6)
-
-            minusBtn.MouseButton1Click:Connect(function()
-                local curVal = sliderObject.Value or 50
-                sliderObject:SetValue(math.clamp(curVal - 1, sliderObject.Min or 1, sliderObject.Max or 100))
-            end)
-
-            plusBtn.MouseButton1Click:Connect(function()
-                local curVal = sliderObject.Value or 50
-                sliderObject:SetValue(math.clamp(curVal + 1, sliderObject.Min or 1, sliderObject.Max or 100))
-            end)
         end)
     end
+end)
 
-    MobileOptimizeSlider(HealCardSlider)
+local isAutoDungeon = false
+local dungeonConnection = nil
+local attackThread = nil
+local currentTargetMob = nil 
 
-    local AutoPickCardToggle = Tabs.Main:AddToggle("AutoPickCard", {
-        Title = "Auto Pick Card",
-        Description = "Picks from Select Card & Ignores Blacklist Card",
-        Default = false
-    })
+local DISTANCE = 6.5
+local OFFSET_X = 0
+local OFFSET_Y = -1
+local OFFSET_Z = 0
 
-    local AutoSkipToggle = Tabs.Main:AddToggle("AutoSkip", {
-        Title = "Auto Skip",
-        Default = false
-    })
-    
+local function IsMobAlive(mob)
+    if mob and mob.Parent and mob:IsDescendantOf(workspace) then
+        local hum = mob:FindFirstChildOfClass("Humanoid")
+        local hrp = mob:FindFirstChild("HumanoidRootPart") or mob:FindFirstChild("Head") or mob.PrimaryPart
+        if hum and hrp and hum.Health > 0 then
+            return true
+        end
+    end
+    return false
+end
+
+local function GetClosestMob(maxDistance)
+    local player = game.Players.LocalPlayer
+    if not (player.Character and player.Character:FindFirstChild("HumanoidRootPart")) then return nil end
+
+    local myPos = player.Character.HumanoidRootPart.Position
+    local closestMob = nil
+    local shortestDist = maxDistance
+
+    for _, obj in pairs(workspace:GetDescendants()) do
+        if obj:IsA("Humanoid") and obj.Parent and obj.Parent ~= player.Character then
+            local mobChar = obj.Parent
+            if IsMobAlive(mobChar) and not game.Players:GetPlayerFromCharacter(mobChar) then
+                local mobHrp = mobChar:FindFirstChild("HumanoidRootPart") or mobChar:FindFirstChild("Head") or mobChar.PrimaryPart
+                if mobHrp then
+                    local dist = (mobHrp.Position - myPos).Magnitude
+                    if dist <= shortestDist then
+                        shortestDist = dist
+                        closestMob = mobChar
+                    end
+                end
+            end
+        end
+    end
+
+    return closestMob
+end
+
+local AutoDungeonToggle = Tabs.Main:AddToggle("AutoDungeon", {
+    Title = "Auto Dungeon (4 Hits + 1s Rest)",
+    Description = "Attacks 4 times continuously, pauses for 1 second, and repeats",
+    Default = false
+})
+
+AutoDungeonToggle:OnChanged(function(Value)
+    isAutoDungeon = Value
+
+    if isAutoDungeon then
+        dungeonConnection = game:GetService("RunService").Heartbeat:Connect(function()
+            local player = game.Players.LocalPlayer
+            if not (player.Character and player.Character:FindFirstChild("HumanoidRootPart")) then return end
+
+            if not IsMobAlive(currentTargetMob) then
+                currentTargetMob = GetClosestMob(1250)
+            end
+
+            if IsMobAlive(currentTargetMob) then
+                local mobPart = currentTargetMob:FindFirstChild("HumanoidRootPart") or currentTargetMob:FindFirstChild("Head") or currentTargetMob.PrimaryPart
+                if mobPart then
+                    local targetPos = mobPart.Position + Vector3.new(OFFSET_X, DISTANCE + OFFSET_Y, OFFSET_Z)
+                    local targetCFrame = CFrame.new(targetPos) * CFrame.Angles(math.rad(-90), 0, 0)
+                    
+                    player.Character.HumanoidRootPart.CFrame = targetCFrame
+                    player.Character.HumanoidRootPart.Velocity = Vector3.new(0, 0, 0)
+                end
+            end
+        end)
+
+        attackThread = task.spawn(function()
+            local signalEvent = game:GetService("ReplicatedStorage"):WaitForChild("Communication"):WaitForChild("ServerAndClient"):WaitForChild("Signals"):WaitForChild("SignalEvent")
+            local signalRemote = signalEvent:FindFirstChild("Event") or signalEvent
+
+            while isAutoDungeon do
+                if IsMobAlive(currentTargetMob) then
+                    for combo = 1, 4 do
+                        pcall(function()
+                            signalRemote:FireServer("Combat_Service", "Combat", combo, false, 0, false)
+                        end)
+                        task.wait(0.05)
+                    end
+                    task.wait(1)
+                else
+                    task.wait(0.1)
+                end
+            end
+        end)
+    else
+        currentTargetMob = nil
+        if dungeonConnection then
+            dungeonConnection:Disconnect()
+            dungeonConnection = nil
+        end
+        if attackThread then
+            task.cancel(attackThread)
+            attackThread = nil
+        end
+    end
+end)
+
+local SelectCardDropdown = Tabs.Main:AddDropdown("SelectCard", {
+    Title = "Select Card",
+    Description = "Select cards to auto pick",
+    Values = {"Card 1", "Card 2", "Card 3", "Card 4", "Card 5", "Card 6", "Card 7"},
+    Multi = true,
+    Default = {}
+})
+
+local BlacklistCardDropdown = Tabs.Main:AddDropdown("BlacklistCard", {
+    Title = "Blacklist Card",
+    Description = "Select cards to ignore",
+    Values = {"Card 1", "Card 2", "Card 3", "Card 4", "Card 5", "Card 6", "Card 7"},
+    Multi = true,
+    Default = {}
+})
+
+task.spawn(function()
+    task.wait(1)
+    for _, dropdownObj in pairs({SelectCardDropdown, BlacklistCardDropdown}) do
+        if dropdownObj and dropdownObj.Frame then
+            local scroll = dropdownObj.Frame:FindFirstChildWhichIsA("ScrollingFrame", true)
+            if scroll then
+                for _, child in pairs(scroll:GetChildren()) do
+                    if child:IsA("TextButton") or child:IsA("ImageButton") then
+                        local rawConnections = getconnections(child.MouseButton1Click)
+                        for _, conn in pairs(rawConnections) do
+                            local func = conn.Function
+                            if func then
+                                conn:Disable()
+                                AttachMobileDragFilter(scroll, child, function()
+                                    func()
+                                end)
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
+
+local HealCardSlider = Tabs.Main:AddSlider("HealCardBelowHP", {
+    Title = "Heal Card Below HP %",
+    Description = "Adjust HP threshold for Heal Card",
+    Default = 50,
+    Min = 1,
+    Max = 100,
+    Rounding = 0,
+    Callback = function(Value)
+        print("Heal Card HP %:", Value)
+    end
+})
+
+MobileOptimizeSlider(HealCardSlider)
+
+local AutoPickCardToggle = Tabs.Main:AddToggle("AutoPickCard", {
+    Title = "Auto Pick Card",
+    Description = "Picks from Select Card & Ignores Blacklist Card",
+    Default = false
+})
+
+local AutoSkipToggle = Tabs.Main:AddToggle("AutoSkip", {
+    Title = "Auto Skip",
+    Default = false
+})
+
 ---------------------------------------------------------
--- Combat Tab & Instant Kill Logic
+-- 2. Combat Tab (Instant Kill & Setup)
 ---------------------------------------------------------
 local isInstantKill = false
-local instantKillHPThreshold = 100 -- Default 100%
+local instantKillHPThreshold = 100
 
--- เพิ่ม Tab Combat
-Tabs.Combat = Window:AddTab({ Title = "Combat", Icon = "swords" })
+Tabs.Combat:AddSection("Setup")
 
-do
-    ---------------------------------------------------------
-    -- Setup Section
-    ---------------------------------------------------------
-    Tabs.Combat:AddSection("Setup")
+local InstantKillToggle = Tabs.Combat:AddToggle("InstantKillToggle", {
+    Title = "Instant Kill",
+    Description = "Sends high damage event to target when HP % is below threshold",
+    Default = false
+})
 
-    -- Toggle สำหรับเปิด/ปิด Instant Kill
-    local InstantKillToggle = Tabs.Combat:AddToggle("InstantKillToggle", {
-        Title = "Instant Kill",
-        Description = "Sends high damage event to target when HP % is below threshold",
-        Default = false
-    })
+local InstantKillSlider = Tabs.Combat:AddSlider("InstantKillHPThreshold", {
+    Title = "HP Threshold (%)",
+    Description = "Target HP % threshold to activate Instant Kill (1-100%)",
+    Default = 100,
+    Min = 1,
+    Max = 100,
+    Rounding = 0,
+    Callback = function(Value)
+        instantKillHPThreshold = Value
+    end
+})
 
-    -- Slider สำหรับปรับ % HP Threshold
-    local InstantKillSlider = Tabs.Combat:AddSlider("InstantKillHPThreshold", {
-        Title = "HP Threshold (%)",
-        Description = "Target HP % threshold to activate Instant Kill (1-100%)",
-        Default = 100,
-        Min = 1,
-        Max = 100,
-        Rounding = 0,
-        Callback = function(Value)
-            instantKillHPThreshold = Value
-        end
-    })
+MobileOptimizeSlider(InstantKillSlider)
 
-    -- ปรับแต่งปุ่ม + / - ให้กดง่ายสำหรับมือถือ
-    MobileOptimizeSlider(InstantKillSlider)
+InstantKillToggle:OnChanged(function(Value)
+    isInstantKill = Value
+end)
 
-    InstantKillToggle:OnChanged(function(Value)
-        isInstantKill = Value
-    end)
+task.spawn(function()
+    local ReplicatedStorage = game:GetService("ReplicatedStorage")
+    local signalEvent = ReplicatedStorage:WaitForChild("Communication"):WaitForChild("ServerAndClient"):WaitForChild("Signals"):WaitForChild("SignalEvent")
+    local signalRemote = signalEvent:FindFirstChild("Event") or signalEvent
 
-    ---------------------------------------------------------
-    -- Instant Kill Loop
-    ---------------------------------------------------------
-    task.spawn(function()
-        local ReplicatedStorage = game:GetService("ReplicatedStorage")
-        local signalEvent = ReplicatedStorage:WaitForChild("Communication"):WaitForChild("ServerAndClient"):WaitForChild("Signals"):WaitForChild("SignalEvent")
-        local signalRemote = signalEvent:FindFirstChild("Event") or signalEvent
-
-        while true do
-            if isInstantKill then
-                pcall(function()
-                    local player = game.Players.LocalPlayer
-                    if player and player.Character then
-                        for _, obj in pairs(workspace:GetDescendants()) do
-                            if obj:IsA("Humanoid") and obj.Parent and obj.Parent ~= player.Character then
-                                local targetChar = obj.Parent
-                                local isPlayer = game.Players:GetPlayerFromCharacter(targetChar)
-                                
-                                -- ทำงานกับมอนสเตอร์และบอสทุกตัว (ยกเว้นผู้เล่นด้วยกัน)
-                                if not isPlayer and obj.Health > 0 and obj.MaxHealth > 0 then
-                                    local hpPercent = (obj.Health / obj.MaxHealth) * 100
-                                    
-                                    -- ตรวจสอบว่า HP % อยู่ในเกณฑ์ที่กำหนดไว้หรือไม่
-                                    if hpPercent <= instantKillHPThreshold then
-                                        -- ยิง RemoteEvent เพื่อส่งความเสียหายสูงตรงๆ เข้าตัวเป้าหมาย
-                                        signalRemote:FireServer("Combat_Service", "Combat", 1, false, 99999999, false, targetChar)
-                                    end
+    while true do
+        if isInstantKill then
+            pcall(function()
+                local player = game.Players.LocalPlayer
+                if player and player.Character then
+                    for _, obj in pairs(workspace:GetDescendants()) do
+                        if obj:IsA("Humanoid") and obj.Parent and obj.Parent ~= player.Character then
+                            local targetChar = obj.Parent
+                            local isPlayer = game.Players:GetPlayerFromCharacter(targetChar)
+                            
+                            if not isPlayer and obj.Health > 0 and obj.MaxHealth > 0 then
+                                local hpPercent = (obj.Health / obj.MaxHealth) * 100
+                                if hpPercent <= instantKillHPThreshold then
+                                    signalRemote:FireServer("Combat_Service", "Combat", 1, false, 99999999, false, targetChar)
                                 end
                             end
                         end
                     end
-                end)
-            end
-            task.wait(0.2) -- ระยะเวลาวนลูปตรวจจับเป้าหมาย
-        end
-    end)
-    end
-    
-    ---------------------------------------------------------
-    -- Player Section (Player Tab)
-    ---------------------------------------------------------
-    Tabs.Player:AddSection("Player")
-
-    local noclipConnection
-    local isNoclip = false
-
-    local NoClipToggle = Tabs.Player:AddToggle("NoClipToggle", {
-        Title = "No Clip",
-        Description = "Allows character to walk through walls",
-        Default = false
-    })
-
-    NoClipToggle:OnChanged(function(Value)
-        isNoclip = Value
-        if isNoclip then
-            noclipConnection = game:GetService("RunService").Stepped:Connect(function()
-                local player = game.Players.LocalPlayer
-                if player.Character then
-                    for _, part in pairs(player.Character:GetDescendants()) do
-                        if part:IsA("BasePart") and part.CanCollide then
-                            part.CanCollide = false
-                        end
-                    end
                 end
             end)
-        else
-            if noclipConnection then
-                noclipConnection:Disconnect()
-                noclipConnection = nil
-            end
         end
-    end)
+        task.wait(0.2)
+    end
+end)
 
-    local isSpeedActive = false
-    local speedValue = 16
+---------------------------------------------------------
+-- 3. Player Tab
+---------------------------------------------------------
+Tabs.Player:AddSection("Player")
 
-    local SpeedToggle = Tabs.Player:AddToggle("SpeedToggle", {
-        Title = "Player Speed",
-        Description = "Toggle custom walk speed",
-        Default = false
-    })
+local noclipConnection
+local isNoclip = false
 
-    local SpeedSlider = Tabs.Player:AddSlider("SpeedSlider", {
-        Title = "Speed Value",
-        Description = "Adjust walk speed (1 - 200)",
-        Default = 16,
-        Min = 1,
-        Max = 200,
-        Rounding = 0,
-        Callback = function(Value)
-            speedValue = Value
-        end
-    })
+local NoClipToggle = Tabs.Player:AddToggle("NoClipToggle", {
+    Title = "No Clip",
+    Description = "Allows character to walk through walls",
+    Default = false
+})
 
-    MobileOptimizeSlider(SpeedSlider)
-
-    SpeedToggle:OnChanged(function(Value)
-        isSpeedActive = Value
-    end)
-
-    game:GetService("RunService").RenderStepped:Connect(function()
-        if isSpeedActive then
+NoClipToggle:OnChanged(function(Value)
+    isNoclip = Value
+    if isNoclip then
+        noclipConnection = game:GetService("RunService").Stepped:Connect(function()
             local player = game.Players.LocalPlayer
-            if player.Character and player.Character:FindFirstChild("Humanoid") then
-                player.Character.Humanoid.WalkSpeed = speedValue
+            if player.Character then
+                for _, part in pairs(player.Character:GetDescendants()) do
+                    if part:IsA("BasePart") and part.CanCollide then
+                        part.CanCollide = false
+                    end
+                end
             end
+        end)
+    else
+        if noclipConnection then
+            noclipConnection:Disconnect()
+            noclipConnection = nil
         end
-    end)
-end
+    end
+end)
+
+local isSpeedActive = false
+local speedValue = 16
+
+local SpeedToggle = Tabs.Player:AddToggle("SpeedToggle", {
+    Title = "Player Speed",
+    Description = "Toggle custom walk speed",
+    Default = false
+})
+
+local SpeedSlider = Tabs.Player:AddSlider("SpeedSlider", {
+    Title = "Speed Value",
+    Description = "Adjust walk speed (1 - 200)",
+    Default = 16,
+    Min = 1,
+    Max = 200,
+    Rounding = 0,
+    Callback = function(Value)
+        speedValue = Value
+    end
+})
+
+MobileOptimizeSlider(SpeedSlider)
+
+SpeedToggle:OnChanged(function(Value)
+    isSpeedActive = Value
+end)
+
+game:GetService("RunService").RenderStepped:Connect(function()
+    if isSpeedActive then
+        local player = game.Players.LocalPlayer
+        if player.Character and player.Character:FindFirstChild("Humanoid") then
+            player.Character.Humanoid.WalkSpeed = speedValue
+        end
+    end
+end)
