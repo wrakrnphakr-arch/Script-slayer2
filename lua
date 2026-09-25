@@ -541,7 +541,11 @@ do
 
     local AutoPickCardToggle = Tabs.Main:AddToggle("AutoPickCard", {
         Title = "Auto Pick Card",
-        Description = "Picks from Select Card & Ignores Blaim2.fromOffset(size, math.floor(size * 1.5))
+        local AutoPickCardToggle = Tabs.Main:AddToggle("AutoPickCard", {
+    Title = "Auto Pick Card",
+    Description = "Picks from Select Card & Ignores Blacklist Card",
+    Default = false
+})
             petal.BackgroundColor3 = Color3.fromRGB(255, 182, 193)
             petal.BackgroundTransparency = 0.15 + math.random() * 0.2
             petal.BorderSizePixel = 0
