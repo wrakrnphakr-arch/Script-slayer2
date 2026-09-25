@@ -558,10 +558,14 @@ do
         print("Auto Dungeon Status:", Value)
     end)
 
-    local SelectCardDropdown = Tabs.Main:AddDropdown("SelectCard", {
+        local SelectCardDropdown = Tabs.Main:AddDropdown("SelectCard", {
         Title = "Select Card",
-  ce.new("Frame")
-            local size = math.random(6, 12)
+        Description = "Select cards to auto pick",
+        Values = {"Card 1", "Card 2", "Card 3", "Card 4", "Card 5", "Card 6", "Card 7"},
+        Multi = true,
+        Default = {}
+    })
+
             petal.Size = UDim2.fromOffset(size, math.floor(size * 1.5))
             petal.BackgroundColor3 = Color3.fromRGB(255, 182, 193)
             petal.BackgroundTransparency = 0.15 + math.random() * 0.2
