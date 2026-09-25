@@ -759,9 +759,14 @@ do
         Title = "Auto Skip",
         Default = false
     })
+    
 ---------------------------------------------------------
--- Combat Tab Setup (วางไว้ก่อน Tab Player)
+-- Combat Tab & Instant Kill Logic
 ---------------------------------------------------------
+local isInstantKill = false
+local instantKillHPThreshold = 100 -- Default 100%
+
+-- เพิ่ม Tab Combat
 Tabs.Combat = Window:AddTab({ Title = "Combat", Icon = "swords" })
 
 do
@@ -770,19 +775,18 @@ do
     ---------------------------------------------------------
     Tabs.Combat:AddSection("Setup")
 
-    local isInstantKill = false
-    local instantKillHPThreshold = 20
-
+    -- Toggle สำหรับเปิด/ปิด Instant Kill
     local InstantKillToggle = Tabs.Combat:AddToggle("InstantKillToggle", {
         Title = "Instant Kill",
-        Description = "Sends lethal damage direct to mob below HP threshold",
+        Description = "Sends high damage event to target when HP % is below threshold",
         Default = false
     })
 
-    local InstantKillSlider = Tabs.Combat:AddSlider("InstantKillSlider", {
+    -- Slider สำหรับปรับ % HP Threshold
+    local InstantKillSlider = Tabs.Combat:AddSlider("InstantKillHPThreshold", {
         Title = "HP Threshold (%)",
-        Description = "Triggers Instant Kill when Mob HP is below this %",
-        Default = 20,
+        Description = "Target HP % threshold to activate Instant Kill (1-100%)",
+        Default = 100,
         Min = 1,
         Max = 100,
         Rounding = 0,
@@ -791,7 +795,7 @@ do
         end
     })
 
-    -- Add mobile + / - buttons to slider
+    -- ปรับแต่งปุ่ม + / - ให้กดง่ายสำหรับมือถือ
     MobileOptimizeSlider(InstantKillSlider)
 
     InstantKillToggle:OnChanged(function(Value)
@@ -799,39 +803,31 @@ do
     end)
 
     ---------------------------------------------------------
-    -- Instant Kill Logic Loop
+    -- Instant Kill Loop
     ---------------------------------------------------------
     task.spawn(function()
-        local signalEvent = game:GetService("ReplicatedStorage")
-            :WaitForChild("Communication")
-            :WaitForChild("ServerAndClient")
-            :WaitForChild("Signals")
-            :WaitForChild("SignalEvent")
+        local ReplicatedStorage = game:GetService("ReplicatedStorage")
+        local signalEvent = ReplicatedStorage:WaitForChild("Communication"):WaitForChild("ServerAndClient"):WaitForChild("Signals"):WaitForChild("SignalEvent")
         local signalRemote = signalEvent:FindFirstChild("Event") or signalEvent
 
         while true do
             if isInstantKill then
                 pcall(function()
                     local player = game.Players.LocalPlayer
-                    if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-                        local myPos = player.Character.HumanoidRootPart.Position
-
+                    if player and player.Character then
                         for _, obj in pairs(workspace:GetDescendants()) do
                             if obj:IsA("Humanoid") and obj.Parent and obj.Parent ~= player.Character then
-                                local mobChar = obj.Parent
-                                local mobHrp = mobChar:FindFirstChild("HumanoidRootPart") or mobChar:FindFirstChild("Head") or mobChar.PrimaryPart
+                                local targetChar = obj.Parent
+                                local isPlayer = game.Players:GetPlayerFromCharacter(targetChar)
                                 
-                                if mobHrp and obj.Health > 0 and not game.Players:GetPlayerFromCharacter(mobChar) then
-                                    local dist = (mobHrp.Position - myPos).Magnitude
+                                -- ทำงานกับมอนสเตอร์และบอสทุกตัว (ยกเว้นผู้เล่นด้วยกัน)
+                                if not isPlayer and obj.Health > 0 and obj.MaxHealth > 0 then
+                                    local hpPercent = (obj.Health / obj.MaxHealth) * 100
                                     
-                                    -- Check if within range (100 studs)
-                                    if dist <= 100 then
-                                        local hpPercent = (obj.Health / obj.MaxHealth) * 100
-                                        
-                                        -- Trigger Instant Kill direct signal payload if HP % is below threshold
-                                        if hpPercent <= instantKillHPThreshold then
-                                            signalRemote:FireServer("Combat_Service", "Combat", 1, false, 999999999, true)
-                                        end
+                                    -- ตรวจสอบว่า HP % อยู่ในเกณฑ์ที่กำหนดไว้หรือไม่
+                                    if hpPercent <= instantKillHPThreshold then
+                                        -- ยิง RemoteEvent เพื่อส่งความเสียหายสูงตรงๆ เข้าตัวเป้าหมาย
+                                        signalRemote:FireServer("Combat_Service", "Combat", 1, false, 99999999, false, targetChar)
                                     end
                                 end
                             end
@@ -839,7 +835,7 @@ do
                     end
                 end)
             end
-            task.wait(0.1)
+            task.wait(0.2) -- ระยะเวลาวนลูปตรวจจับเป้าหมาย
         end
     end)
     end
