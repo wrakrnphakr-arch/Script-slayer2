@@ -486,11 +486,12 @@ UserInputService.InputChanged:Connect(function(input)
 end)
 
 ---------------------------------------------------------
--- Tabs Setup
+-- Tabs Setup (เพิ่ม Teleport Tab ไว้ที่นี่)
 ---------------------------------------------------------
 local Tabs = {
     Main = Window:AddTab({ Title = "Main", Icon = "home" }),
     Combat = Window:AddTab({ Title = "Combat", Icon = "swords" }),
+    Teleport = Window:AddTab({ Title = "Teleport", Icon = "map-pin" }),
     Player = Window:AddTab({ Title = "Player", Icon = "user" }),
     Settings = Window:AddTab({ Title = "Settings", Icon = "settings" })
 }
@@ -749,10 +750,10 @@ local AutoSkipToggle = Tabs.Main:AddToggle("AutoSkip", {
 })
 
 ---------------------------------------------------------
--- 2. Combat Tab (Instant Kill Logic)
+-- 2. Combat Tab
 ---------------------------------------------------------
 local isInstantKill = false
-local instantKillDistance = 100 -- ค่าเริ่มต้น Stud
+local instantKillDistance = 100
 
 Tabs.Combat:AddSection("Setup")
 
@@ -780,7 +781,6 @@ InstantKillToggle:OnChanged(function(Value)
     isInstantKill = Value
 end)
 
--- Loop การทำงานของ Instant Kill (ประยุกต์ร่วมกับโค้ดดั้งเดิม)
 task.spawn(function()
     local Players = game:GetService("Players")
 
@@ -799,7 +799,6 @@ task.spawn(function()
                             local mobChar = obj.Parent
                             local isPlayer = Players:GetPlayerFromCharacter(mobChar)
                             
-                            -- ทำงานเฉพาะมอนสเตอร์ที่ยังมีชีวิต
                             if not isPlayer and obj.Health > 0 and obj.MaxHealth > 0 then
                                 local hpPercent = (obj.Health / obj.MaxHealth) * 100
                                 local mobHrp = mobChar:FindFirstChild("HumanoidRootPart") or mobChar:FindFirstChild("Head") or mobChar.PrimaryPart
@@ -807,7 +806,6 @@ task.spawn(function()
                                 if mobHrp then
                                     local dist = (mobHrp.Position - myHrp.Position).Magnitude
                                     
-                                    -- ทำงานเฉพาะเมื่อ HP <= 45% และอยู่ในระยะ Studs ที่กำหนด
                                     if hpPercent <= 45 and dist <= instantKillDistance then
                                         local savepos = myHrp.CFrame
                                         local torso = myChar:FindFirstChild("Torso") or myChar:FindFirstChild("UpperTorso")
@@ -831,7 +829,6 @@ task.spawn(function()
                                         tool.Grip = CFrame.new(Vector3.new(0, 0, 0))
                                         if torso then torso.Anchored = false end
                                         
-                                        -- Loop วาร์ปเกาะติดเป้าหมายเพื่อกำจัด
                                         repeat
                                             if myHrp and mobHrp then
                                                 myHrp.CFrame = mobHrp.CFrame
@@ -864,7 +861,43 @@ task.spawn(function()
 end)
 
 ---------------------------------------------------------
--- 3. Player Tab
+-- 3. Teleport Tab (ส่วนที่เพิ่มเข้ามาใหม่)
+---------------------------------------------------------
+Tabs.Teleport:AddSection("NPC")
+
+local function TeleportTo(coords)
+    local player = game.Players.LocalPlayer
+    if player and player.Character then
+        local hrp = player.Character:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            hrp.CFrame = CFrame.new(coords)
+        end
+    end
+end
+
+Tabs.Teleport:AddButton({
+    Title = "Teleport to Fisherman Jeso",
+    Callback = function()
+        TeleportTo(Vector3.new(-192, 820, 602))
+    end
+})
+
+Tabs.Teleport:AddButton({
+    Title = "Teleport to Blacksmith",
+    Callback = function()
+        TeleportTo(Vector3.new(1731, 696, 760))
+    end
+})
+
+Tabs.Teleport:AddButton({
+    Title = "Teleport to Refiner Hagane",
+    Callback = function()
+        TeleportTo(Vector3.new(1870, 699, -432))
+    end
+})
+
+---------------------------------------------------------
+-- 4. Player Tab
 ---------------------------------------------------------
 Tabs.Player:AddSection("Player")
 
