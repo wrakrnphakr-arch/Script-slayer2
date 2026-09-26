@@ -838,15 +838,75 @@ task.spawn(function()
                                         
                                         local hum = myChar:FindFirstChild("Humanoid")
                                         if hum then hum:UnequipTools() end
-                                        
-                                        if hathandle and hat then
-                                            hathandle.Parent = hat
-                                            hathandle.Massless = false
-                                        end
-                                        
-                                        tool:Destroy()
-                                        if myHrp and savepos then
-                                            myHrp.CFrame = savepos
+---------------------------------------------------------
+-- 2. Combat Tab (Instant Kill via Remote Event Abuse)
+---------------------------------------------------------
+local isInstantKill = false
+local instantKillDistance = 100
+
+Tabs.Combat:AddSection("Setup")
+
+local InstantKillToggle = Tabs.Combat:AddToggle("InstantKillToggle", {
+    Title = "Instant Kill (Remote Abuse)",
+    Description = "Spam remote events with extreme damage to kill mobs instantly",
+    Default = false
+})
+
+local InstantKillDistSlider = Tabs.Combat:AddSlider("InstantKillDistance", {
+    Title = "Distance Threshold (Studs)",
+    Description = "Maximum detection distance to trigger Instant Kill",
+    Default = 100,
+    Min = 100,
+    Max = 500,
+    Rounding = 0,
+    Callback = function(Value)
+        instantKillDistance = Value
+    end
+})
+
+MobileOptimizeSlider(InstantKillDistSlider)
+
+InstantKillToggle:OnChanged(function(Value)
+    isInstantKill = Value
+end)
+
+-- Loop ยิง Remote Event ใส่ Target มอนสเตอร์ในระยะ
+task.spawn(function()
+    local Players = game:GetService("Players")
+    local ReplicatedStorage = game:GetService("ReplicatedStorage")
+    
+    -- อ้างอิง RemoteEvent ตัวเดียวกับที่ใช้ใน Auto Dungeon
+    local signalEvent = ReplicatedStorage:WaitForChild("Communication"):WaitForChild("ServerAndClient"):WaitForChild("Signals"):WaitForChild("SignalEvent")
+    local signalRemote = signalEvent:FindFirstChild("Event") or signalEvent
+
+    while true do
+        if isInstantKill then
+            pcall(function()
+                local LocalPlayer = Players.LocalPlayer
+                local myChar = LocalPlayer and LocalPlayer.Character
+                local myHrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
+
+                if myChar and myHrp then
+                    for _, obj in pairs(workspace:GetDescendants()) do
+                        if not isInstantKill then break end
+                        
+                        if obj:IsA("Humanoid") and obj.Parent and obj.Parent ~= myChar then
+                            local mobChar = obj.Parent
+                            local isPlayer = Players:GetPlayerFromCharacter(mobChar)
+                            
+                            -- ตรวจสอบว่าเป็นมอนสเตอร์และยังมีชีวิตอยู่
+                            if not isPlayer and obj.Health > 0 then
+                                local mobHrp = mobChar:FindFirstChild("HumanoidRootPart") or mobChar:FindFirstChild("Head") or mobChar.PrimaryPart
+                                
+                                if mobHrp then
+                                    local dist = (mobHrp.Position - myHrp.Position).Magnitude
+                                    
+                                    -- หากมอนสเตอร์อยู่ในระยะที่กำหนด
+                                    if dist <= instantKillDistance then
+                                        -- ยิงแพ็กเกจโจมตีด้วยค่า Damage/Combo สูงสุดแบบรัวๆ (Infinite/Extreme Damage Payload)
+                                        for combo = 1, 10 do
+                                            signalRemote:FireServer("Combat_Service", "Combat", combo, true, math.huge, true, mobChar)
+                                            signalRemote:FireServer("Combat_Service", "Hit", mobChar, math.huge)
                                         end
                                     end
                                 end
@@ -856,7 +916,7 @@ task.spawn(function()
                 end
             end)
         end
-        task.wait(0.1)
+        task.wait(0.05) -- ความเร็วในการตรวจสอบเป้าหมาย
     end
 end)
 
