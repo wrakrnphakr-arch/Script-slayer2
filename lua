@@ -750,95 +750,6 @@ local AutoSkipToggle = Tabs.Main:AddToggle("AutoSkip", {
 })
 
 ---------------------------------------------------------
--- 2. Combat Tab
----------------------------------------------------------
-local isInstantKill = false
-local instantKillDistance = 100
-
-Tabs.Combat:AddSection("Setup")
-
-local InstantKillToggle = Tabs.Combat:AddToggle("InstantKillToggle", {
-    Title = "Instant Kill (Trigger HP <= 45%)",
-    Description = "Teleports & attacks mob within distance when HP <= 45%",
-    Default = false
-})
-
-local InstantKillDistSlider = Tabs.Combat:AddSlider("InstantKillDistance", {
-    Title = "Distance Threshold (Studs)",
-    Description = "Maximum detection distance to trigger Instant Kill",
-    Default = 100,
-    Min = 100,
-    Max = 500,
-    Rounding = 0,
-    Callback = function(Value)
-        instantKillDistance = Value
-    end
-})
-
-MobileOptimizeSlider(InstantKillDistSlider)
-
-InstantKillToggle:OnChanged(function(Value)
-    isInstantKill = Value
-end)
-
-task.spawn(function()
-    local Players = game:GetService("Players")
-
-    while true do
-        if isInstantKill then
-            pcall(function()
-                local LocalPlayer = Players.LocalPlayer
-                local myChar = LocalPlayer and LocalPlayer.Character
-                local myHrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
-
-                if myChar and myHrp then
-                    for _, obj in pairs(workspace:GetDescendants()) do
-                        if not isInstantKill then break end
-                        
-                        if obj:IsA("Humanoid") and obj.Parent and obj.Parent ~= myChar then
-                            local mobChar = obj.Parent
-                            local isPlayer = Players:GetPlayerFromCharacter(mobChar)
-                            
-                            if not isPlayer and obj.Health > 0 and obj.MaxHealth > 0 then
-                                local hpPercent = (obj.Health / obj.MaxHealth) * 100
-                                local mobHrp = mobChar:FindFirstChild("HumanoidRootPart") or mobChar:FindFirstChild("Head") or mobChar.PrimaryPart
-                                
-                                if mobHrp then
-                                    local dist = (mobHrp.Position - myHrp.Position).Magnitude
-                                    
-                                    if hpPercent <= 45 and dist <= instantKillDistance then
-                                        local savepos = myHrp.CFrame
-                                        local torso = myChar:FindFirstChild("Torso") or myChar:FindFirstChild("UpperTorso")
-                                        
-                                        if torso then torso.Anchored = true end
-                                        
-                                        local tool = Instance.new("Tool", LocalPlayer:FindFirstChildOfClass("Backpack") or LocalPlayer.Backpack)
-                                        local hat = myChar:FindFirstChildOfClass("Accessory")
-                                        local hathandle = hat and hat:FindFirstChild("Handle")
-                                        
-                                        if hathandle then
-                                            hathandle.Parent = tool
-                                            hathandle.Massless = true
-                                        end
-                                        
-                                        tool.GripPos = Vector3.new(0, 9e99, 0)
-                                        tool.Parent = myChar
-                                        
-                                        repeat task.wait() until myChar:FindFirstChildOfClass("Tool") ~= nil or not isInstantKill
-                                        
-                                        tool.Grip = CFrame.new(Vector3.new(0, 0, 0))
-                                        if torso then torso.Anchored = false end
-                                        
-                                        repeat
-                                            if myHrp and mobHrp then
-                                                myHrp.CFrame = mobHrp.CFrame
-                                            end
-                                            task.wait()
-                                        until not isInstantKill or mobChar == nil or obj.Health <= 0 or myChar == nil or myChar:FindFirstChild("Humanoid").Health <= 0
-                                        
-                                        local hum = myChar:FindFirstChild("Humanoid")
-                                        if hum then hum:UnequipTools() end
----------------------------------------------------------
 -- 2. Combat Tab (Instant Kill via Remote Event Abuse)
 ---------------------------------------------------------
 local isInstantKill = false
@@ -945,7 +856,7 @@ Tabs.Teleport:AddButton({
 Tabs.Teleport:AddButton({
     Title = "Teleport to Blacksmith",
     Callback = function()
-        TeleportTo(Vector3.new(1731, 700, -760))
+        TeleportTo(Vector3.new(1731, 696, 760))
     end
 })
 
