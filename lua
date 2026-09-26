@@ -703,7 +703,7 @@ task.spawn(function()
     for _, dropdownObj in pairs({SelectCardDropdown, BlacklistCardDropdown}) do
         if dropdownObj and dropdownObj.Frame then
             local scroll = dropdownObj.Frame:FindFirstChildWhichIsA("ScrollingFrame", true)
-            if scroll then
+            if scroll me
                 for _, child in pairs(scroll:GetChildren()) do
                     if child:IsA("TextButton") or child:IsA("ImageButton") then
                         local rawConnections = getconnections(child.MouseButton1Click)
@@ -749,12 +749,12 @@ local AutoSkipToggle = Tabs.Main:AddToggle("AutoSkip", {
 })
 
 ---------------------------------------------------------
--- 2. Combat Tab (Instant Kill Logic)
+-- 2. Combat Tab (Instant Kill Logic - Updated)
 ---------------------------------------------------------
 local isInstantKill = false
-local instantKillHPThreshold = 100
+local killDistanceStuds = 100 -- ค่าเริ่มต้นระยะ Studs (100 - 500)
 
--- ฟังก์ชันดึงชื่ออาวุธที่กำลังถืออยู่จริง (ไม่จำกัดชนิดอาวุธ)
+-- ฟังก์ชันดึงชื่ออาวุธที่กำลังถืออยู่ (รองรับอาวุธทุกชนิดที่ถืออยู่)
 local function GetEquippedWeaponName()
     local player = game.Players.LocalPlayer
     if player and player.Character then
@@ -763,36 +763,37 @@ local function GetEquippedWeaponName()
             return tool.Name
         end
     end
-    return nil
+    return "Combat" -- Fallback หากไม่ได้ถืออาวุธใดๆ
 end
 
 Tabs.Combat:AddSection("Setup")
 
 local InstantKillToggle = Tabs.Combat:AddToggle("InstantKillToggle", {
-    Title = "Instant Kill",
-    Description = "Spams damage remotes when Target HP % is below threshold",
+    Title = "Instant Kill (HP <= 45%)",
+    Description = "Kills mobs instantly when their HP drops to 45% or lower",
     Default = false
 })
-
-local InstantKillSlider = Tabs.Combat:AddSlider("InstantKillHPThreshold", {
-    Title = "HP Threshold (%)",
-    Description = "Activate Instant Kill when target HP % drops below this value",
-    Default = 100,
-    Min = 1,
-    Max = 100,
-    Rounding = 0,
-    Callback = function(Value)
-        instantKillHPThreshold = Value
-    end
-})
-
-MobileOptimizeSlider(InstantKillSlider)
 
 InstantKillToggle:OnChanged(function(Value)
     isInstantKill = Value
 end)
 
--- Loop การทำงานของ Instant Kill
+-- Slider ปรับระยะทางในการทำ Instant Kill (100 - 500 Studs)
+local KillDistanceSlider = Tabs.Combat:AddSlider("KillDistanceStuds", {
+    Title = "Kill Distance (Studs)",
+    Description = "Max distance to execute Instant Kill (100 - 500 Studs)",
+    Default = 100,
+    Min = 100,
+    Max = 500,
+    Rounding = 0,
+    Callback = function(Value)
+        killDistanceStuds = Value
+    end
+})
+
+MobileOptimizeSlider(KillDistanceSlider)
+
+-- Loop ทำงานของ Instant Kill (ส่งสัญญาณตีรัวเมื่อเข้าเงื่อนไข HP <= 45% และอยู่ในระยะ)
 task.spawn(function()
     local ReplicatedStorage = game:GetService("ReplicatedStorage")
     local signalEvent = ReplicatedStorage:WaitForChild("Communication"):WaitForChild("ServerAndClient"):WaitForChild("Signals"):WaitForChild("SignalEvent")
@@ -802,32 +803,34 @@ task.spawn(function()
         if isInstantKill then
             pcall(function()
                 local player = game.Players.LocalPlayer
-                local equippedWeapon = GetEquippedWeaponName()
+                if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                    local myPos = player.Character.HumanoidRootPart.Position
+                    local weaponName = GetEquippedWeaponName()
 
-                -- เช็กว่าได้ถืออาวุธอยู่หรือไม่
-                if player and player.Character and equippedWeapon then
                     for _, obj in pairs(workspace:GetDescendants()) do
                         if obj:IsA("Humanoid") and obj.Parent and obj.Parent ~= player.Character then
-                            local targetChar = obj.Parent
-                            local isPlayer = game.Players:GetPlayerFromCharacter(targetChar)
+                            local mobChar = obj.Parent
+                            local isPlayer = game.Players:GetPlayerFromCharacter(mobChar)
                             
-                            -- เช็กว่าเป็นมอนสเตอร์และยังมีชีวิตอยู่
+                            -- ตรวจสอบว่าเป็น มอนสเตอร์ และ มีชีวิตอยู่
                             if not isPlayer and obj.Health > 0 and obj.MaxHealth > 0 then
-                                local hpPercent = (obj.Health / obj.MaxHealth) * 100
-                                
-                                -- ทำงานเมื่อ HP% ของเป้าหมายต่ำกว่าหรือเท่ากับ Threshold ที่ตั้งไว้
-                                if hpPercent <= instantKillHPThreshold then
-                                    -- รัว RemoteEvent ด้วยโครงสร้าง Remote Spy
-                                    for combo = 1, 10 do
-                                        local args = {
-                                            "Combat_Service",
-                                            equippedWeapon, -- ใส่ชื่ออาวุธที่ถืออยู่อัตโนมัติ
-                                            combo,
-                                            false,
-                                            0.06310679611650488,
-                                            true
-                                        }
-                                        signalRemote:FireServer(unpack(args))
+                                local mobPart = mobChar:FindFirstChild("HumanoidRootPart") or mobChar:FindFirstChild("Head") or mobChar.PrimaryPart
+                                if mobPart then
+                                    local distance = (mobPart.Position - myPos).Magnitude
+                                    local hpPercent = (obj.Health / obj.MaxHealth) * 100
+
+                                    -- ทำงานทันทีเมื่อ HP <= 45% และ ระยะทางไม่เกินที่ตั้งค่าไว้
+                                    if hpPercent <= 45 and distance <= killDistanceStuds then
+                                        for combo = 1, 5 do
+                                            signalRemote:FireServer(
+                                                "Combat_Service",
+                                                weaponName,
+                                                combo,
+                                                false,
+                                                0.06310679611650488,
+                                                true
+                                            )
+                                        end
                                     end
                                 end
                             end
@@ -836,7 +839,7 @@ task.spawn(function()
                 end
             end)
         end
-        task.wait(0.05)
+        task.wait(0.1)
     end
 end)
 
