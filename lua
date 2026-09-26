@@ -749,87 +749,107 @@ local AutoSkipToggle = Tabs.Main:AddToggle("AutoSkip", {
 })
 
 ---------------------------------------------------------
--- 2. Combat Tab (Instant Kill Logic - Updated)
+-- 2. Combat Tab (Instant Kill Logic)
 ---------------------------------------------------------
 local isInstantKill = false
-local killDistanceStuds = 100 -- ค่าเริ่มต้นระยะ Studs (100 - 500)
-
--- ฟังก์ชันดึงชื่ออาวุธที่กำลังถืออยู่ (รองรับอาวุธทุกชนิดที่ถืออยู่)
-local function GetEquippedWeaponName()
-    local player = game.Players.LocalPlayer
-    if player and player.Character then
-        local tool = player.Character:FindFirstChildOfClass("Tool")
-        if tool then
-            return tool.Name
-        end
-    end
-    return "Combat" -- Fallback หากไม่ได้ถืออาวุธใดๆ
-end
+local instantKillDistance = 100 -- ค่าเริ่มต้น Stud
 
 Tabs.Combat:AddSection("Setup")
 
 local InstantKillToggle = Tabs.Combat:AddToggle("InstantKillToggle", {
-    Title = "Instant Kill (HP <= 45%)",
-    Description = "Kills mobs instantly when their HP drops to 45% or lower",
+    Title = "Instant Kill (Trigger HP <= 45%)",
+    Description = "Teleports & attacks mob within distance when HP <= 45%",
     Default = false
 })
 
-InstantKillToggle:OnChanged(function(Value)
-    isInstantKill = Value
-end)
-
--- Slider ปรับระยะทางในการทำ Instant Kill (100 - 500 Studs)
-local KillDistanceSlider = Tabs.Combat:AddSlider("KillDistanceStuds", {
-    Title = "Kill Distance (Studs)",
-    Description = "Max distance to execute Instant Kill (100 - 500 Studs)",
+local InstantKillDistSlider = Tabs.Combat:AddSlider("InstantKillDistance", {
+    Title = "Distance Threshold (Studs)",
+    Description = "Maximum detection distance to trigger Instant Kill",
     Default = 100,
     Min = 100,
     Max = 500,
     Rounding = 0,
     Callback = function(Value)
-        killDistanceStuds = Value
+        instantKillDistance = Value
     end
 })
 
-MobileOptimizeSlider(KillDistanceSlider)
+MobileOptimizeSlider(InstantKillDistSlider)
 
--- Loop ทำงานของ Instant Kill (ส่งสัญญาณตีรัวเมื่อเข้าเงื่อนไข HP <= 45% และอยู่ในระยะ)
+InstantKillToggle:OnChanged(function(Value)
+    isInstantKill = Value
+end)
+
+-- Loop การทำงานของ Instant Kill (ประยุกต์ร่วมกับโค้ดดั้งเดิม)
 task.spawn(function()
-    local ReplicatedStorage = game:GetService("ReplicatedStorage")
-    local signalEvent = ReplicatedStorage:WaitForChild("Communication"):WaitForChild("ServerAndClient"):WaitForChild("Signals"):WaitForChild("SignalEvent")
-    local signalRemote = signalEvent:FindFirstChild("Event") or signalEvent
+    local Players = game:GetService("Players")
 
     while true do
         if isInstantKill then
             pcall(function()
-                local player = game.Players.LocalPlayer
-                if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-                    local myPos = player.Character.HumanoidRootPart.Position
-                    local weaponName = GetEquippedWeaponName()
+                local LocalPlayer = Players.LocalPlayer
+                local myChar = LocalPlayer and LocalPlayer.Character
+                local myHrp = myChar and myChar:FindFirstChild("HumanoidRootPart")
 
+                if myChar and myHrp then
                     for _, obj in pairs(workspace:GetDescendants()) do
-                        if obj:IsA("Humanoid") and obj.Parent and obj.Parent ~= player.Character then
+                        if not isInstantKill then break end
+                        
+                        if obj:IsA("Humanoid") and obj.Parent and obj.Parent ~= myChar then
                             local mobChar = obj.Parent
-                            local isPlayer = game.Players:GetPlayerFromCharacter(mobChar)
+                            local isPlayer = Players:GetPlayerFromCharacter(mobChar)
                             
-                            -- ตรวจสอบว่าเป็น มอนสเตอร์ และ มีชีวิตอยู่
+                            -- ทำงานเฉพาะมอนสเตอร์ที่ยังมีชีวิต
                             if not isPlayer and obj.Health > 0 and obj.MaxHealth > 0 then
-                                local mobPart = mobChar:FindFirstChild("HumanoidRootPart") or mobChar:FindFirstChild("Head") or mobChar.PrimaryPart
-                                if mobPart then
-                                    local distance = (mobPart.Position - myPos).Magnitude
-                                    local hpPercent = (obj.Health / obj.MaxHealth) * 100
-
-                                    -- ทำงานทันทีเมื่อ HP <= 45% และ ระยะทางไม่เกินที่ตั้งค่าไว้
-                                    if hpPercent <= 45 and distance <= killDistanceStuds then
-                                        for combo = 1, 5 do
-                                            signalRemote:FireServer(
-                                                "Combat_Service",
-                                                weaponName,
-                                                combo,
-                                                false,
-                                                0.06310679611650488,
-                                                true
-                                            )
+                                local hpPercent = (obj.Health / obj.MaxHealth) * 100
+                                local mobHrp = mobChar:FindFirstChild("HumanoidRootPart") or mobChar:FindFirstChild("Head") or mobChar.PrimaryPart
+                                
+                                if mobHrp then
+                                    local dist = (mobHrp.Position - myHrp.Position).Magnitude
+                                    
+                                    -- ทำงานเฉพาะเมื่อ HP <= 45% และอยู่ในระยะ Studs ที่กำหนด
+                                    if hpPercent <= 45 and dist <= instantKillDistance then
+                                        local savepos = myHrp.CFrame
+                                        local torso = myChar:FindFirstChild("Torso") or myChar:FindFirstChild("UpperTorso")
+                                        
+                                        if torso then torso.Anchored = true end
+                                        
+                                        local tool = Instance.new("Tool", LocalPlayer:FindFirstChildOfClass("Backpack") or LocalPlayer.Backpack)
+                                        local hat = myChar:FindFirstChildOfClass("Accessory")
+                                        local hathandle = hat and hat:FindFirstChild("Handle")
+                                        
+                                        if hathandle then
+                                            hathandle.Parent = tool
+                                            hathandle.Massless = true
+                                        end
+                                        
+                                        tool.GripPos = Vector3.new(0, 9e99, 0)
+                                        tool.Parent = myChar
+                                        
+                                        repeat task.wait() until myChar:FindFirstChildOfClass("Tool") ~= nil or not isInstantKill
+                                        
+                                        tool.Grip = CFrame.new(Vector3.new(0, 0, 0))
+                                        if torso then torso.Anchored = false end
+                                        
+                                        -- Loop วาร์ปเกาะติดเป้าหมายเพื่อกำจัด
+                                        repeat
+                                            if myHrp and mobHrp then
+                                                myHrp.CFrame = mobHrp.CFrame
+                                            end
+                                            task.wait()
+                                        until not isInstantKill or mobChar == nil or obj.Health <= 0 or myChar == nil or myChar:FindFirstChild("Humanoid").Health <= 0
+                                        
+                                        local hum = myChar:FindFirstChild("Humanoid")
+                                        if hum then hum:UnequipTools() end
+                                        
+                                        if hathandle and hat then
+                                            hathandle.Parent = hat
+                                            hathandle.Massless = false
+                                        end
+                                        
+                                        tool:Destroy()
+                                        if myHrp and savepos then
+                                            myHrp.CFrame = savepos
                                         end
                                     end
                                 end
