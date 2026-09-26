@@ -885,7 +885,7 @@ Tabs.Teleport:AddButton({
 Tabs.Teleport:AddButton({
     Title = "Teleport to Blacksmith",
     Callback = function()
-        TeleportTo(Vector3.new(1731, 696, 760))
+        TeleportTo(Vector3.new(1731, 700, -760))
     end
 })
 
