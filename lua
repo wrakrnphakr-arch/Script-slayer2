@@ -703,7 +703,7 @@ task.spawn(function()
     for _, dropdownObj in pairs({SelectCardDropdown, BlacklistCardDropdown}) do
         if dropdownObj and dropdownObj.Frame then
             local scroll = dropdownObj.Frame:FindFirstChildWhichIsA("ScrollingFrame", true)
-            if scroll me
+            if scroll then
                 for _, child in pairs(scroll:GetChildren()) do
                     if child:IsA("TextButton") or child:IsA("ImageButton") then
                         local rawConnections = getconnections(child.MouseButton1Click)
